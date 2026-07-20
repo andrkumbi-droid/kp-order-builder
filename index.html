@@ -132,6 +132,7 @@
   <div class="grow"></div>
   <button class="btn ghost" id="btnNew">New order</button>
   <button class="btn" id="btnImport">Import PI</button>
+  <button class="btn" id="btnDrive">⛁ Drive</button>
   <input type="file" id="importFile" accept=".xlsx" multiple style="display:none">
   <button class="btn" id="btnLoad">Open</button>
   <button class="btn" id="btnSave">Save</button>
@@ -200,6 +201,7 @@
   <div class="modal" id="modalBox"></div>
 </div>
 
+<script src="https://accounts.google.com/gsi/client" async></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <script>
@@ -958,6 +960,51 @@ function commitImport(lines,suppliers,append){
 
 el('btnImport').onclick=function(){ el('importFile').click(); };
 el('importFile').onchange=function(e){ importFiles(e.target.files); e.target.value=''; };
+
+/* ---------- Import directly from Google Drive ---------- */
+var GDRIVE_CLIENT_ID=''; /* <<< OAuth Web Client ID from Google Cloud (kp-wallpanel) */
+var gdToken=null, gdTokenClient=null;
+function gdReady(){ return typeof google!=='undefined' && google.accounts && google.accounts.oauth2; }
+function gdImport(){
+  if(!GDRIVE_CLIENT_ID){ alert('Google Drive import is not set up yet.\nAn OAuth Client ID still needs to be added.'); return; }
+  if(!gdReady()){ alert('Google library still loading — try again in a moment.'); return; }
+  if(!gdTokenClient){ gdTokenClient=google.accounts.oauth2.initTokenClient({ client_id:GDRIVE_CLIENT_ID, scope:'https://www.googleapis.com/auth/drive.readonly', callback:function(resp){ if(resp&&resp.access_token){ gdToken=resp.access_token; gdSearch(''); } else alert('Google sign-in failed.'); } }); }
+  gdTokenClient.requestAccessToken({ prompt: gdToken?'':'consent' });
+}
+function gdApi(url){ return fetch(url,{ headers:{ Authorization:'Bearer '+gdToken } }); }
+function gdSearch(term){
+  var base="mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' and trashed=false";
+  var q= term ? base+" and name contains '"+term.replace(/'/g,"\\'")+"'" : base+" and (name contains 'PI' or name contains 'Proforma' or name contains 'invoice' or name contains 'pimmigrand' or name contains 'Jacky' or name contains 'Belinda' or name contains 'Andre')";
+  var url='https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(q)+'&orderBy=modifiedTime desc&pageSize=200&fields=files(id,name,size,modifiedTime)&supportsAllDrives=true&includeItemsFromAllDrives=true';
+  gdApi(url).then(function(r){ return r.json(); }).then(function(d){ if(d.error){ alert('Drive: '+d.error.message); return; } gdShowList(d.files||[]); }).catch(function(e){ alert('Drive error: '+e.message); });
+}
+function gdShowList(files){
+  var box=el('modalBox');
+  var rows=files.map(function(f){
+    var kb=f.size?Math.round(f.size/1024):0;
+    var big=kb>=150;
+    return '<label class="accrow" style="cursor:pointer"><input type="checkbox" class="gdchk" data-id="'+f.id+'" data-name="'+esc(f.name)+'" '+(big?'checked':'')+' style="width:auto">'+
+      '<div class="an"><b>'+esc(f.name)+'</b><small>'+(kb?kb+' KB · ':'')+esc((f.modifiedTime||'').slice(0,10))+(big?'':' · small (likely no images)')+'</small></div></label>';
+  }).join('');
+  box.innerHTML='<h3>Google Drive — '+files.length+' file(s)</h3>'+
+    '<div class="row" style="margin-bottom:8px"><input class="field" id="gdTerm" placeholder="filter by name…"><button class="btn" id="gdGo">Search</button></div>'+
+    '<div style="max-height:46vh;overflow:auto;display:flex;flex-direction:column;gap:5px">'+(rows||'<div class="empty">No files found.</div>')+'</div>'+
+    '<div class="foot"><button class="btn ghost" id="mCancel">Cancel</button><button class="btn primary" id="gdImp">Import selected</button></div>';
+  el('modal').classList.remove('hide');
+  el('mCancel').onclick=closeModal;
+  el('gdGo').onclick=function(){ gdSearch(el('gdTerm').value.trim()); };
+  el('gdTerm').onkeydown=function(e){ if(e.key==='Enter') gdSearch(this.value.trim()); };
+  el('gdImp').onclick=function(){
+    var chosen=Array.prototype.slice.call(box.querySelectorAll('.gdchk:checked'));
+    if(!chosen.length){ alert('Select at least one file.'); return; }
+    this.textContent='downloading…'; this.disabled=true;
+    Promise.all(chosen.map(function(c){
+      var id=c.getAttribute('data-id'), name=c.getAttribute('data-name');
+      return gdApi('https://www.googleapis.com/drive/v3/files/'+id+'?alt=media&supportsAllDrives=true').then(function(r){ return r.arrayBuffer(); }).then(function(ab){ return { name:name, arrayBuffer:function(){ return Promise.resolve(ab); } }; });
+    })).then(function(fileObjs){ importFiles(fileObjs); }).catch(function(e){ alert('Download failed: '+e.message); el('gdImp').textContent='Import selected'; el('gdImp').disabled=false; });
+  };
+}
+el('btnDrive').onclick=gdImport;
 
 /* keyboard: Enter in code field adds line */
 el('prodCode').addEventListener('keydown',function(e){ if(e.key==='Enter') el('btnAddLine').click(); });
