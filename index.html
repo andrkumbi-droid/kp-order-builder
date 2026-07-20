@@ -1,0 +1,972 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>KP Order Builder</title>
+<style>
+  :root{
+    --bg:#0f1216; --panel:#171b21; --panel2:#1e242c; --line:#2a323c;
+    --txt:#e7ecf2; --muted:#93a1b0; --accent:#3b82f6; --accent2:#22c55e;
+    --danger:#ef4444; --chip:#232a33; --radius:12px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.4 system-ui,Segoe UI,Roboto,Arial,sans-serif}
+  button{font:inherit;cursor:pointer}
+  input,select,textarea{font:inherit}
+  .hide{display:none!important}
+
+  /* top bar */
+  .top{display:flex;gap:10px;align-items:center;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20;flex-wrap:wrap}
+  .top h1{font-size:16px;margin:0;font-weight:700;letter-spacing:.3px}
+  .top h1 span{color:var(--accent)}
+  .top .grow{flex:1}
+  .ordname{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px 10px;min-width:180px}
+  .btn{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px 12px}
+  .btn:hover{border-color:var(--accent)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.green{background:var(--accent2);border-color:var(--accent2);color:#04220f}
+  .btn.ghost{background:transparent}
+  .cloud{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .dot{width:8px;height:8px;border-radius:50%;background:#6b7280}
+  .dot.ok{background:var(--accent2)} .dot.err{background:var(--danger)}
+
+  /* layout */
+  .wrap{display:grid;grid-template-columns:minmax(360px,1fr) minmax(420px,1.15fr);gap:0;min-height:calc(100vh - 55px)}
+  @media(max-width:900px){.wrap{grid-template-columns:1fr}}
+  .composer{padding:16px;border-right:1px solid var(--line);overflow:auto}
+  .board{padding:16px;background:#12161b;overflow:auto}
+
+  .step{margin-bottom:18px}
+  .step h2{font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin:0 0 8px;display:flex;align-items:center;gap:8px}
+  .step h2 .num{background:var(--chip);color:var(--txt);width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px}
+  .step h2 .pick{margin-left:auto;color:var(--accent2);font-weight:600;text-transform:none;letter-spacing:0}
+
+  .tiles{display:flex;gap:8px;flex-wrap:wrap}
+  .tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px;width:112px;text-align:center;position:relative;transition:.12s}
+  .tile:hover{border-color:var(--accent)}
+  .tile.sel{border-color:var(--accent2);box-shadow:0 0 0 1px var(--accent2) inset}
+  .tile .thumb{width:96px;height:72px;border-radius:6px;object-fit:cover;background:#0c0f13;display:block;margin:0 auto 6px}
+  .tile .cap{font-size:12px;font-weight:600;word-break:break-word;line-height:1.2}
+  .tile .sub{font-size:11px;color:var(--muted);margin-top:2px}
+  .tile .del{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.55);border:none;color:#fff;width:18px;height:18px;border-radius:50%;line-height:1;font-size:12px;display:none}
+  .tile:hover .del{display:block}
+  .tile.add{display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);border-style:dashed;min-height:108px}
+  .tile.add .plus{font-size:26px;line-height:1}
+  .swatchgrid .tile{width:92px}
+  .swatchgrid .tile .thumb{width:76px;height:76px}
+
+  .qtyrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .qtyrow input[type=number]{width:130px;padding:10px;border-radius:8px;background:var(--panel);border:1px solid var(--line);color:var(--txt);font-size:16px;font-weight:700}
+  .field{padding:10px;border-radius:8px;background:var(--panel);border:1px solid var(--line);color:var(--txt);width:100%}
+
+  /* accessories */
+  .acc{display:flex;flex-direction:column;gap:8px}
+  .accrow{display:flex;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px}
+  .accrow.off{opacity:.5}
+  .accrow img{width:48px;height:36px;object-fit:cover;border-radius:5px;background:#0c0f13}
+  .accrow .an{flex:1}
+  .accrow .an b{display:block}
+  .accrow .an small{color:var(--muted)}
+  .accrow input.code{width:90px}
+  .accrow input.q{width:80px}
+  .accrow .pct{font-size:11px;color:var(--muted);white-space:nowrap}
+  .accrow input.code,.accrow input.q{padding:7px;border-radius:6px;background:var(--panel2);border:1px solid var(--line);color:var(--txt)}
+  .accrow .tg{width:22px;height:22px;border-radius:6px;border:1px solid var(--line);background:var(--panel2);display:flex;align-items:center;justify-content:center;color:var(--accent2);font-weight:800}
+  .accrow.off .tg{color:transparent}
+
+  .addline{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 30%);padding-top:14px;margin-top:6px}
+
+  /* board cards */
+  .board h2{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+  .board h2 .count{background:var(--accent);color:#fff;border-radius:20px;padding:1px 8px;font-size:12px}
+  .cards{display:flex;flex-direction:column;gap:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;grid-template-columns:88px 1fr auto;gap:12px;position:relative}
+  .card .qtytop{position:absolute;top:-9px;left:12px;background:var(--accent2);color:#04220f;font-weight:800;font-size:12px;padding:2px 10px;border-radius:20px}
+  .card .pimg{width:88px;height:88px;object-fit:cover;border-radius:8px;background:#0c0f13}
+  .card .mid{min-width:0}
+  .card .code{font-size:18px;font-weight:800;letter-spacing:.5px}
+  .card .meta{font-size:12px;color:var(--muted);margin-top:2px}
+  .card .colorline{display:flex;gap:8px;align-items:center;margin-top:8px}
+  .card .colorline img{width:34px;height:34px;border-radius:6px;object-fit:cover;background:#0c0f13}
+  .card .colorline b{font-size:12px}
+  .card .accs{display:flex;flex-direction:column;gap:6px;text-align:right;font-size:12px}
+  .card .accs .a{display:flex;gap:6px;align-items:center;justify-content:flex-end}
+  .card .accs .a img{width:26px;height:20px;object-fit:cover;border-radius:4px;background:#0c0f13}
+  .card .rm{position:absolute;top:8px;right:8px;background:transparent;border:none;color:var(--muted);font-size:16px}
+  .card .rm:hover{color:var(--danger)}
+  .empty{color:var(--muted);text-align:center;padding:40px 10px;border:1px dashed var(--line);border-radius:12px}
+
+  /* modal */
+  .ov{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;width:min(440px,100%);max-height:90vh;overflow:auto}
+  .modal h3{margin:0 0 12px}
+  .modal label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px}
+  .modal .row{display:flex;gap:8px}
+  .modal .row>*{flex:1}
+  .uparea{border:1px dashed var(--line);border-radius:10px;padding:14px;text-align:center;color:var(--muted);cursor:pointer}
+  .uparea img{max-width:100%;max-height:140px;border-radius:8px;margin-top:8px}
+  .modal .foot{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+
+  /* print board */
+  @media print{
+    body{background:#fff;color:#000}
+    .top,.composer,.board h2,.card .rm,.noprint{display:none!important}
+    .wrap{display:block}
+    .board{background:#fff;padding:0}
+    #printTitle{display:block!important;font-size:18px;font-weight:800;margin-bottom:10px}
+    .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .card{border:1px solid #ccc;break-inside:avoid;background:#fff;color:#000}
+    .card .code{color:#000}
+    .card .qtytop{background:#e5e7eb;color:#000}
+    .card .meta,.card .accs,.card .colorline b{color:#111}
+  }
+  #printTitle{display:none}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>KP <span>Order Builder</span></h1>
+  <input id="ordName" class="ordname" placeholder="Order name / PO no."/>
+  <div class="grow"></div>
+  <button class="btn ghost" id="btnNew">New order</button>
+  <button class="btn" id="btnImport">Import PI</button>
+  <input type="file" id="importFile" accept=".xlsx" multiple style="display:none">
+  <button class="btn" id="btnLoad">Open</button>
+  <button class="btn" id="btnSave">Save</button>
+  <button class="btn primary" id="btnPdf">Export PDF</button>
+  <button class="btn green" id="btnXls">Export Excel</button>
+  <span class="cloud"><span class="dot" id="cloudDot"></span><span id="cloudTxt">connecting…</span></span>
+</div>
+
+<div class="wrap">
+  <!-- COMPOSER -->
+  <div class="composer">
+    <div class="step" id="s-supplier">
+      <h2><span class="num">1</span> Supplier <span class="pick" data-pick="supplier"></span></h2>
+      <div class="tiles" id="tiles-supplier"></div>
+    </div>
+
+    <div class="step" id="s-panel">
+      <h2><span class="num">2</span> Panel type <span class="pick" data-pick="panel"></span></h2>
+      <div class="tiles" id="tiles-panel"></div>
+    </div>
+
+    <div class="step" id="s-book">
+      <h2><span class="num">3</span> Color book <span class="pick" data-pick="book"></span></h2>
+      <div class="tiles" id="tiles-book"></div>
+    </div>
+
+    <div class="step" id="s-color">
+      <h2><span class="num">4</span> Color <span class="pick" data-pick="color"></span></h2>
+      <div class="tiles swatchgrid" id="tiles-color"></div>
+    </div>
+
+    <div class="step">
+      <h2><span class="num">5</span> Quantity (pcs)</h2>
+      <div class="qtyrow">
+        <input type="number" id="qty" min="0" step="1" placeholder="e.g. 2400"/>
+        <span style="color:var(--muted)">panels</span>
+      </div>
+    </div>
+
+    <div class="step">
+      <h2><span class="num">6</span> Accessories</h2>
+      <div class="acc" id="accList"></div>
+      <button class="btn ghost" id="btnAddAcc" style="margin-top:8px">+ New accessory type</button>
+    </div>
+
+    <div class="step">
+      <h2><span class="num">7</span> Product code / name</h2>
+      <input class="field" id="prodCode" placeholder="e.g. KP052 / K-PVC-14"/>
+    </div>
+
+    <div class="addline">
+      <button class="btn primary" id="btnAddLine" style="width:100%;padding:12px;font-size:15px;font-weight:700">Add to order ↵</button>
+    </div>
+  </div>
+
+  <!-- BOARD -->
+  <div class="board">
+    <div id="printTitle"></div>
+    <h2>Order board <span class="count" id="lineCount">0</span> <span style="margin-left:auto;font-size:11px;color:var(--muted)" class="noprint">click a card to edit</span></h2>
+    <div class="cards" id="cards"></div>
+  </div>
+</div>
+
+<!-- generic add modal -->
+<div class="ov hide" id="modal">
+  <div class="modal" id="modalBox"></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script>
+(function(){
+"use strict";
+
+/* ---------- Firebase ---------- */
+var db=null, online=false;
+try{
+  firebase.initializeApp({
+    apiKey:"AIzaSyBhUzwMR28dvulez9q6AZ4gZS80Y9VK0qQ",
+    authDomain:"kp-wallpanel.firebaseapp.com",
+    databaseURL:"https://kp-wallpanel-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId:"kp-wallpanel",
+    storageBucket:"kp-wallpanel.firebasestorage.app",
+    messagingSenderId:"794246593779",
+    appId:"1:794246593779:web:703fc0a4ba89ba58734b86"
+  });
+  db=firebase.database();
+}catch(e){ console.warn(e); }
+var OB='orderBuilder';
+var IMG_BASE='https://andrkumbi-droid.github.io/kp-wallpanel/img/products/';
+
+function setCloud(state,txt){
+  var d=document.getElementById('cloudDot');
+  d.className='dot'+(state==='ok'?' ok':state==='err'?' err':'');
+  document.getElementById('cloudTxt').textContent=txt;
+}
+
+/* ---------- catalog state ---------- */
+var cat={ suppliers:{}, panelTypes:{}, colorBooks:{}, colors:{}, accessories:{}, webCatalog:{} };
+function watch(node,key){
+  if(!db) return;
+  db.ref(OB+'/'+node).on('value',function(s){ cat[key]=s.val()||{}; renderTiles(); renderAcc(); },function(err){ setCloud('err','db read blocked'); });
+}
+if(db){
+  setCloud('','connecting…');
+  db.ref('.info/connected').on('value',function(s){
+    online=!!s.val(); setCloud(online?'ok':'err', online?'synced':'offline');
+  });
+  watch('suppliers','suppliers');
+  watch('panelTypes','panelTypes');
+  watch('colorBooks','colorBooks');
+  watch('colors','colors');
+  watch('accessories','accessories');
+  db.ref('pub/webCatalog').on('value',function(s){ cat.webCatalog=s.val()||{}; },function(){});
+  seedDefaults();
+}else{ setCloud('err','no firebase'); }
+
+function dbPush(node,obj){
+  if(!db){ alert('No DB connection'); return Promise.reject(); }
+  var ref=db.ref(OB+'/'+node).push();
+  return ref.set(obj).then(function(){ return ref.key; })
+    .catch(function(e){ setCloud('err','write blocked'); alert('Could not save to cloud:\n'+e.message); throw e; });
+}
+function dbRemove(node,id){ if(db) db.ref(OB+'/'+node+'/'+id).remove().catch(function(){}); }
+
+/* seed a few defaults once (only if empty) */
+function seedDefaults(){
+  db.ref(OB+'/_seeded').once('value').then(function(s){
+    if(s.val()) return;
+    db.ref(OB+'/_seeded').set(Date.now());
+    var sup=[
+      {name:'Jinhua Xinyt',addr:'NO.1379 Jingang Road, Fucun Town, Jinhua City, Zhejiang, China',fob:'FOB Ningbo',hs:'3925900000'},
+      {name:'Shidai Haipai',addr:'',fob:'',hs:''}
+    ];
+    var books=[
+      {name:'Wooden Series',brand:'PVC / WPC 2026'},
+      {name:'Shidai Haipai',brand:'PVC 木纹 2025-5'},
+      {name:'Fashion Film 2026',brand:'Jacky · Pink · Vladimir'},
+      {name:'WPC Wall Panel',brand:'Wooden Grille Swatch'},
+      {name:'RF Aesthetics',brand:'2024 全屋定制'}
+    ];
+    var panels=[
+      {name:'PVC Panel',material:'PVC',size:'400*7*2900mm'},
+      {name:'PVC Panel',material:'PVC',size:'200*12*2900mm'},
+      {name:'WPC Panel',material:'WPC',size:'165*22*2900mm'}
+    ];
+    var accs=[
+      {atype:'L-Profile',code:'L',pct:30},
+      {atype:'T-Trim',code:'T',pct:6},
+      {atype:'U-Profile',code:'U',pct:5},
+      {atype:'Clips',code:'CLIP',pct:0,unit:'ctn'}
+    ];
+    sup.forEach(function(x){ db.ref(OB+'/suppliers').push(x); });
+    books.forEach(function(x){ db.ref(OB+'/colorBooks').push(x); });
+    panels.forEach(function(x){ db.ref(OB+'/panelTypes').push(x); });
+    accs.forEach(function(x){ db.ref(OB+'/accessories').push(x); });
+  }).catch(function(){});
+}
+
+/* ---------- current selection / line being built ---------- */
+var sel={ supplier:null, panel:null, book:null, color:null };
+var accState={}; // accId -> {on,qty,code}
+var editingIndex=-1;
+
+/* ---------- current order ---------- */
+var order={ name:'', supplierId:null, lines:[] };
+var LS='kp-orderbuilder-current';
+function saveLocal(){ try{ localStorage.setItem(LS,JSON.stringify(order)); }catch(e){} }
+function loadLocal(){ try{ var v=localStorage.getItem(LS); if(v){ order=JSON.parse(v); document.getElementById('ordName').value=order.name||''; } }catch(e){} }
+
+/* ---------- helpers ---------- */
+function el(id){ return document.getElementById(id); }
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+function entries(o){ return Object.keys(o||{}).map(function(k){ return [k,o[k]]; }); }
+function productImg(code,fallback){
+  code=(code||'').trim().toUpperCase();
+  if(code && cat.webCatalog[code]) return IMG_BASE+code+'.jpg';
+  return fallback||'';
+}
+
+/* ---------- render tiles ---------- */
+function renderTiles(){
+  // supplier
+  tilesInto('tiles-supplier', cat.suppliers, 'supplier', function(v){
+    return { img:v.img, cap:v.name, sub:v.fob||'' };
+  });
+  // panel
+  tilesInto('tiles-panel', cat.panelTypes, 'panel', function(v){
+    return { img:v.img, cap:(v.material||'')+' '+(v.name||''), sub:v.size||'' };
+  });
+  // book
+  tilesInto('tiles-book', cat.colorBooks, 'book', function(v){
+    return { img:v.img, cap:v.name, sub:v.brand||'' };
+  });
+  // colors (filter by selected book)
+  var colorsFiltered={};
+  entries(cat.colors).forEach(function(e){
+    if(!sel.book || e[1].bookId===sel.book) colorsFiltered[e[0]]=e[1];
+  });
+  tilesInto('tiles-color', colorsFiltered, 'color', function(v){
+    return { img:v.img, cap:v.number||v.page||'color', sub:v.page&&v.number?v.page:'' };
+  });
+  refreshPicks();
+}
+
+function tilesInto(containerId, obj, kind, mapFn){
+  var c=el(containerId); if(!c) return;
+  var html='';
+  entries(obj).forEach(function(e){
+    var id=e[0], m=mapFn(e[1]);
+    var selCls=(sel[kind]===id)?' sel':'';
+    html+='<div class="tile'+selCls+'" data-kind="'+kind+'" data-id="'+id+'">'+
+      '<button class="del" data-del="'+kind+'" data-id="'+id+'">×</button>'+
+      (m.img?'<img class="thumb" src="'+esc(m.img)+'">':'<div class="thumb"></div>')+
+      '<div class="cap">'+esc(m.cap||'')+'</div>'+
+      (m.sub?'<div class="sub">'+esc(m.sub)+'</div>':'')+
+    '</div>';
+  });
+  var addLabel = kind==='color' && !sel.book ? 'pick book first' : 'New';
+  html+='<div class="tile add" data-add="'+kind+'"><div class="plus">+</div><div>'+addLabel+'</div></div>';
+  c.innerHTML=html;
+}
+
+function refreshPicks(){
+  setPick('supplier', sel.supplier && cat.suppliers[sel.supplier] && cat.suppliers[sel.supplier].name);
+  setPick('panel', sel.panel && cat.panelTypes[sel.panel] && ((cat.panelTypes[sel.panel].material||'')+' '+(cat.panelTypes[sel.panel].size||'')));
+  setPick('book', sel.book && cat.colorBooks[sel.book] && cat.colorBooks[sel.book].name);
+  setPick('color', sel.color && cat.colors[sel.color] && ((cat.colors[sel.color].page||'')+' '+(cat.colors[sel.color].number||'')));
+}
+function setPick(kind,val){ var e=document.querySelector('.pick[data-pick="'+kind+'"]'); if(e) e.textContent=val?('✓ '+val):''; }
+
+/* ---------- accessories ---------- */
+function renderAcc(){
+  var c=el('accList'); if(!c) return; var html='';
+  entries(cat.accessories).forEach(function(e){
+    var id=e[0], a=e[1];
+    var st=accState[id]||{on:false,qty:'',code:''};
+    html+='<div class="accrow'+(st.on?'':' off')+'" data-acc="'+id+'">'+
+      '<button class="tg" data-tg="'+id+'">✓</button>'+
+      (a.img?'<img src="'+esc(a.img)+'">':'<img>')+
+      '<div class="an"><b>'+esc(a.atype||a.code||'')+'</b><small>'+esc(a.pct?('~'+a.pct+'% of qty'):(a.unit||''))+'</small></div>'+
+      '<input class="code" data-accfield="code" data-id="'+id+'" placeholder="code" value="'+esc(st.code||a.code||'')+'">'+
+      '<input class="q" type="number" data-accfield="qty" data-id="'+id+'" placeholder="qty" value="'+esc(st.qty||'')+'">'+
+    '</div>';
+  });
+  c.innerHTML=html;
+}
+function autoAccQty(){
+  var q=parseFloat(el('qty').value)||0;
+  entries(cat.accessories).forEach(function(e){
+    var id=e[0], a=e[1], st=accState[id];
+    if(st&&st.on&&a.pct&&(!st.qty||st._auto)){ st.qty=Math.round(q*a.pct/100); st._auto=true; }
+  });
+  renderAcc();
+}
+
+/* ---------- click handling ---------- */
+document.addEventListener('click',function(ev){
+  var t=ev.target;
+  // delete catalog item
+  var del=t.closest&&t.closest('[data-del]');
+  if(del){ ev.stopPropagation();
+    var kind=del.getAttribute('data-del'), id=del.getAttribute('data-id');
+    var node={supplier:'suppliers',panel:'panelTypes',book:'colorBooks',color:'colors'}[kind];
+    if(confirm('Delete this item from catalog?')){ dbRemove(node,id); if(sel[kind]===id) sel[kind]=null; }
+    return;
+  }
+  // add new catalog item
+  var add=t.closest&&t.closest('[data-add]');
+  if(add){ openAdd(add.getAttribute('data-add')); return; }
+  // select tile
+  var tile=t.closest&&t.closest('.tile[data-kind]');
+  if(tile){
+    var k=tile.getAttribute('data-kind'), id=tile.getAttribute('data-id');
+    sel[k]=(sel[k]===id?null:id);
+    if(k==='book') sel.color=null; // reset color when book changes
+    if(k==='supplier'){ order.supplierId=sel.supplier; }
+    renderTiles();
+    return;
+  }
+  // accessory toggle
+  var tg=t.getAttribute&&t.getAttribute('data-tg');
+  if(tg){ accState[tg]=accState[tg]||{on:false,qty:'',code:''}; accState[tg].on=!accState[tg].on; autoAccQty(); return; }
+  // card click -> edit
+  var card=t.closest&&t.closest('.card[data-idx]');
+  if(card && !(t.closest&&t.closest('.rm'))){ editLine(parseInt(card.getAttribute('data-idx'),10)); return; }
+  // card remove
+  var rm=t.closest&&t.closest('.rm');
+  if(rm){ ev.stopPropagation(); order.lines.splice(parseInt(rm.getAttribute('data-idx'),10),1); renderCards(); saveLocal(); return; }
+});
+document.addEventListener('input',function(ev){
+  var t=ev.target, f=t.getAttribute&&t.getAttribute('data-accfield');
+  if(f){ var id=t.getAttribute('data-id'); accState[id]=accState[id]||{on:true,qty:'',code:''}; accState[id].on=true; accState[id][f]=t.value; if(f==='qty') accState[id]._auto=false; renderAcc && null; if(f==='qty'){/*keep*/} return; }
+  if(t.id==='qty'){ autoAccQty(); }
+  if(t.id==='ordName'){ order.name=t.value; saveLocal(); }
+});
+
+/* ---------- add modal ---------- */
+var pendingImg=null;
+function openAdd(kind){
+  if(kind==='color' && !sel.book){ alert('Please pick a color book first.'); return; }
+  pendingImg=null;
+  var box=el('modalBox'), h='';
+  if(kind==='supplier'){
+    h='<h3>New supplier</h3>'+
+      '<label>Name</label><input class="field" id="f_name">'+
+      '<label>Address</label><input class="field" id="f_addr">'+
+      '<div class="row"><div><label>FOB / port</label><input class="field" id="f_fob"></div><div><label>HS code</label><input class="field" id="f_hs"></div></div>';
+  }else if(kind==='panel'){
+    h='<h3>New panel type</h3>'+
+      '<div class="row"><div><label>Name</label><input class="field" id="f_name" placeholder="PVC Panel"></div>'+
+      '<div><label>Material</label><select class="field" id="f_mat"><option>PVC</option><option>WPC</option></select></div></div>'+
+      '<label>Size</label><input class="field" id="f_size" placeholder="400*7*2900mm">';
+  }else if(kind==='book'){
+    h='<h3>New color book</h3>'+
+      '<label>Book name</label><input class="field" id="f_name">'+
+      '<label>Brand / edition</label><input class="field" id="f_brand">';
+  }else if(kind==='color'){
+    var bk=cat.colorBooks[sel.book];
+    h='<h3>New color · '+esc(bk?bk.name:'')+'</h3>'+
+      '<div class="row"><div><label>Page (P.xxx)</label><input class="field" id="f_page" placeholder="P.076"></div>'+
+      '<div><label>Color number</label><input class="field" id="f_num" placeholder="60134-9"></div></div>';
+  }else if(kind==='accessory'){
+    h='<h3>New accessory type</h3>'+
+      '<div class="row"><div><label>Type</label><input class="field" id="f_at" placeholder="L-Profile"></div>'+
+      '<div><label>Code prefix</label><input class="field" id="f_code" placeholder="L"></div></div>'+
+      '<div class="row"><div><label>Suggested %</label><input class="field" id="f_pct" type="number" placeholder="30"></div>'+
+      '<div><label>Unit (opt)</label><input class="field" id="f_unit" placeholder="ctn"></div></div>';
+  }
+  h+='<label>Photo</label><div class="uparea" id="uparea">Click to upload / take photo'+
+     '<input type="file" accept="image/*" id="fileIn" style="display:none">'+
+     '<div id="prev"></div></div>'+
+     '<div class="foot"><button class="btn ghost" id="mCancel">Cancel</button><button class="btn primary" id="mSave">Save</button></div>';
+  box.innerHTML=h;
+  el('modal').classList.remove('hide');
+  el('uparea').onclick=function(){ el('fileIn').click(); };
+  el('fileIn').onchange=function(e){ handleFile(e.target.files[0]); };
+  el('mCancel').onclick=closeModal;
+  el('mSave').onclick=function(){ saveAdd(kind); };
+}
+function closeModal(){ el('modal').classList.add('hide'); }
+el('modal').addEventListener('click',function(e){ if(e.target.id==='modal') closeModal(); });
+
+function handleFile(file){
+  if(!file) return;
+  var r=new FileReader();
+  r.onload=function(){
+    var img=new Image();
+    img.onload=function(){
+      var max=500, w=img.width,h=img.height;
+      if(w>h && w>max){ h=Math.round(h*max/w); w=max; } else if(h>max){ w=Math.round(w*max/h); h=max; }
+      var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      pendingImg=cv.toDataURL('image/jpeg',0.72);
+      var p=el('prev'); if(p) p.innerHTML='<img src="'+pendingImg+'">';
+    };
+    img.src=r.result;
+  };
+  r.readAsDataURL(file);
+}
+
+function saveAdd(kind){
+  var obj={}, node='';
+  function val(id){ var e=el(id); return e?e.value.trim():''; }
+  if(kind==='supplier'){ node='suppliers'; obj={name:val('f_name'),addr:val('f_addr'),fob:val('f_fob'),hs:val('f_hs')}; if(!obj.name)return alert('Name required'); }
+  else if(kind==='panel'){ node='panelTypes'; obj={name:val('f_name')||'Panel',material:val('f_mat'),size:val('f_size')}; }
+  else if(kind==='book'){ node='colorBooks'; obj={name:val('f_name'),brand:val('f_brand')}; if(!obj.name)return alert('Name required'); }
+  else if(kind==='color'){ node='colors'; obj={bookId:sel.book,page:val('f_page'),number:val('f_num')}; if(!obj.page&&!obj.number)return alert('Page or number required'); }
+  else if(kind==='accessory'){ node='accessories'; obj={atype:val('f_at'),code:val('f_code'),pct:parseFloat(val('f_pct'))||0,unit:val('f_unit')}; if(!obj.atype)return alert('Type required'); }
+  if(pendingImg) obj.img=pendingImg;
+  dbPush(node,obj).then(function(newId){
+    if(kind!=='accessory'){ sel[kind==='book'?'book':kind]=newId; if(kind==='book') sel.color=null; }
+    closeModal();
+  });
+}
+el('btnAddAcc').onclick=function(){ openAdd('accessory'); };
+
+/* ---------- add / edit line ---------- */
+function currentLine(){
+  var sup=cat.suppliers[sel.supplier]||{}, pan=cat.panelTypes[sel.panel]||{}, bk=cat.colorBooks[sel.book]||{}, col=cat.colors[sel.color]||{};
+  var accs=[];
+  entries(cat.accessories).forEach(function(e){
+    var id=e[0],a=e[1],st=accState[id];
+    if(st&&st.on){ accs.push({ atype:a.atype, code:(st.code||a.code||''), qty:(st.qty||''), img:a.img||'', unit:a.unit||'' }); }
+  });
+  var code=el('prodCode').value.trim();
+  return {
+    code:code,
+    supplier:sup.name||'', supplierId:sel.supplier,
+    material:pan.material||'', size:pan.size||'', panelName:pan.name||'', panelImg:pan.img||'',
+    book:bk.name||'', bookImg:bk.img||'',
+    page:col.page||'', number:col.number||'', colorImg:col.img||'',
+    qty:el('qty').value.trim(),
+    prodImg:productImg(code, pan.img||''),
+    accs:accs
+  };
+}
+el('btnAddLine').onclick=function(){
+  var ln=currentLine();
+  if(!ln.qty){ alert('Enter a quantity.'); return; }
+  if(!ln.code){ alert('Enter a product code / name.'); return; }
+  if(editingIndex>=0){ order.lines[editingIndex]=ln; editingIndex=-1; }
+  else order.lines.push(ln);
+  // keep supplier/panel/book selected, clear color/qty/code/accs for speed
+  sel.color=null; el('qty').value=''; el('prodCode').value=''; accState={};
+  renderTiles(); renderAcc(); renderCards(); saveLocal();
+  document.querySelector('.board').scrollIntoView({behavior:'smooth',block:'start'});
+};
+
+function editLine(i){
+  var ln=order.lines[i]; if(!ln) return;
+  editingIndex=i;
+  // best-effort restore selections by matching names
+  sel.supplier=findId(cat.suppliers,function(v){return v.name===ln.supplier;})||sel.supplier;
+  sel.panel=findId(cat.panelTypes,function(v){return v.size===ln.size&&v.material===ln.material;})||null;
+  sel.book=findId(cat.colorBooks,function(v){return v.name===ln.book;})||null;
+  sel.color=findId(cat.colors,function(v){return v.page===ln.page&&v.number===ln.number;})||null;
+  el('qty').value=ln.qty; el('prodCode').value=ln.code;
+  accState={};
+  (ln.accs||[]).forEach(function(a){
+    var id=findId(cat.accessories,function(v){return v.atype===a.atype;});
+    if(id) accState[id]={on:true,qty:a.qty,code:a.code,_auto:false};
+  });
+  renderTiles(); renderAcc();
+  document.querySelector('.composer').scrollIntoView({behavior:'smooth'});
+  el('btnAddLine').textContent='Update line ↵';
+}
+function findId(obj,pred){ var f=entries(obj).filter(function(e){return pred(e[1]);}); return f.length?f[0][0]:null; }
+
+/* ---------- render board cards ---------- */
+function renderCards(){
+  var c=el('cards'); el('lineCount').textContent=order.lines.length;
+  el('printTitle').textContent=(order.name||'Order')+'  —  '+new Date().toLocaleDateString();
+  if(!order.lines.length){ c.innerHTML='<div class="empty">No items yet.<br>Build a line on the left and press <b>Add to order</b>.</div>'; el('btnAddLine').textContent='Add to order ↵'; return; }
+  var html='';
+  order.lines.forEach(function(ln,i){
+    var accHtml=(ln.accs||[]).map(function(a){
+      return '<div class="a">'+(a.img?'<img src="'+esc(a.img)+'">':'')+'<span><b>'+esc(a.code)+'</b> · '+esc(a.qty)+(a.unit?(' '+esc(a.unit)):' pcs')+'</span></div>';
+    }).join('');
+    html+='<div class="card" data-idx="'+i+'">'+
+      '<div class="qtytop">'+esc(ln.qty)+' pcs</div>'+
+      '<button class="rm" data-idx="'+i+'">🗑</button>'+
+      (ln.prodImg?'<img class="pimg" src="'+esc(ln.prodImg)+'" onerror="this.style.opacity=.15">':'<div class="pimg"></div>')+
+      '<div class="mid">'+
+        '<div class="code">'+esc(ln.code)+'</div>'+
+        '<div class="meta">'+esc(ln.material)+' · '+esc(ln.size)+(ln.supplier?(' · '+esc(ln.supplier)):'')+'</div>'+
+        '<div class="colorline">'+
+          (ln.bookImg?'<img src="'+esc(ln.bookImg)+'" title="book">':'')+
+          (ln.colorImg?'<img src="'+esc(ln.colorImg)+'" title="colour">':'')+
+          '<b>'+esc(ln.book)+(ln.page?(' · '+esc(ln.page)):'')+(ln.number?(' · '+esc(ln.number)):'')+'</b>'+
+        '</div>'+
+      '</div>'+
+      '<div class="accs">'+accHtml+'</div>'+
+    '</div>';
+  });
+  c.innerHTML=html;
+  el('btnAddLine').textContent = editingIndex>=0 ? 'Update line ↵' : 'Add to order ↵';
+}
+
+/* ---------- top bar actions ---------- */
+el('btnNew').onclick=function(){ if(order.lines.length && !confirm('Start a new empty order?')) return; order={name:'',supplierId:null,lines:[]}; editingIndex=-1; el('ordName').value=''; renderCards(); saveLocal(); };
+el('btnPdf').onclick=function(){ window.print(); };
+el('btnXls').onclick=exportExcel;
+el('btnSave').onclick=saveOrder;
+el('btnLoad').onclick=openOrder;
+
+function saveOrder(){
+  if(!order.lines.length) return alert('Nothing to save.');
+  order.name=el('ordName').value.trim()||('Order '+new Date().toLocaleString());
+  var payload={ name:order.name, supplierId:order.supplierId||null, lines:order.lines, savedAt:Date.now() };
+  if(order._id){ db.ref(OB+'/orders/'+order._id).set(payload).then(function(){ setCloud('ok','order saved'); }); }
+  else{ var r=db.ref(OB+'/orders').push(); r.set(payload).then(function(){ order._id=r.key; saveLocal(); setCloud('ok','order saved'); }).catch(function(e){ alert('Save failed: '+e.message); }); }
+}
+function openOrder(){
+  db.ref(OB+'/orders').once('value').then(function(s){
+    var o=s.val()||{}, ks=Object.keys(o).sort(function(a,b){return (o[b].savedAt||0)-(o[a].savedAt||0);});
+    if(!ks.length) return alert('No saved orders.');
+    var box=el('modalBox');
+    box.innerHTML='<h3>Open order</h3>'+ks.map(function(k){
+      return '<div class="accrow" style="cursor:pointer" data-open="'+k+'"><div class="an"><b>'+esc(o[k].name||k)+'</b><small>'+(o[k].lines?o[k].lines.length:0)+' items · '+new Date(o[k].savedAt||0).toLocaleString()+'</small></div><button class="tg" data-delorder="'+k+'" title="delete">×</button></div>';
+    }).join('')+'<div class="foot"><button class="btn ghost" id="mCancel">Close</button></div>';
+    el('modal').classList.remove('hide');
+    el('mCancel').onclick=closeModal;
+    box.querySelectorAll('[data-open]').forEach(function(row){
+      row.addEventListener('click',function(ev){
+        if(ev.target.getAttribute('data-delorder')){ if(confirm('Delete this order?')){ db.ref(OB+'/orders/'+ev.target.getAttribute('data-delorder')).remove(); closeModal(); } return; }
+        var k=row.getAttribute('data-open'); order={name:o[k].name||'',supplierId:o[k].supplierId||null,lines:o[k].lines||[],_id:k};
+        el('ordName').value=order.name; renderCards(); saveLocal(); closeModal();
+      });
+    });
+  });
+}
+
+/* ---------- Excel export (real .xlsx WITH embedded images) ---------- */
+var EMU=9525; // per pixel @96dpi
+var xesc=function(s){ return (s==null?'':String(s)).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c];}); };
+
+/* minimal STORE-only ZIP writer (no deps) */
+var CRCT=(function(){var t=[];for(var n=0;n<256;n++){var c=n;for(var k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0;}return t;})();
+function crc32(u8){var c=0xFFFFFFFF;for(var i=0;i<u8.length;i++)c=CRCT[(c^u8[i])&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
+function strU8(s){return new TextEncoder().encode(s);}
+function catU8(arr){var n=0;arr.forEach(function(a){n+=a.length;});var o=new Uint8Array(n),p=0;arr.forEach(function(a){o.set(a,p);p+=a.length;});return o;}
+function b64U8(b64){var bin=atob(b64),u=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return u;}
+function makeZip(files){
+  var parts=[],central=[],offset=0;
+  function u16(n){return [n&255,(n>>8)&255];} function u32(n){return [n&255,(n>>8)&255,(n>>16)&255,(n>>24)&255];}
+  files.forEach(function(f){
+    var nb=strU8(f.name),data=f.data,crc=crc32(data),sz=data.length;
+    var lh=[].concat(u32(0x04034b50),u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(sz),u32(sz),u16(nb.length),u16(0));
+    parts.push(new Uint8Array(lh),nb,data);
+    var cd=[].concat(u32(0x02014b50),u16(20),u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(sz),u32(sz),u16(nb.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(offset));
+    central.push(new Uint8Array(cd),nb);
+    offset+=lh.length+nb.length+sz;
+  });
+  var cdBytes=catU8(central);
+  var eocd=[].concat(u32(0x06054b50),u16(0),u16(0),u16(files.length),u16(files.length),u32(cdBytes.length),u32(offset),u16(0));
+  return new Blob([catU8(parts.concat([cdBytes,new Uint8Array(eocd)]))],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+}
+
+function imgToU8(src){
+  if(!src) return Promise.resolve(null);
+  if(src.indexOf('data:')===0){ try{ return Promise.resolve(b64U8(src.split(',')[1])); }catch(e){ return Promise.resolve(null); } }
+  return Promise.race([
+    fetch(src).then(function(r){ return r.ok?r.arrayBuffer():null; }).then(function(b){ return b?new Uint8Array(b):null; }).catch(function(){ return null; }),
+    new Promise(function(res){ setTimeout(function(){res(null);},8000); })
+  ]);
+}
+
+function exportExcel(){
+  if(!order.lines.length) return alert('Nothing to export.');
+  el('btnXls').textContent='building…';
+  // columns: A picture, B item, C size, D material, E book, F page, G color no, H qty
+  var COLS=['PICTURE','ITEM','SIZE','MATERIAL','COLOR BOOK','PAGE','COLOR NO.','QTY (pcs)'];
+  var rowsMeta=[]; // {cells:[...8], img:src|null}
+  order.lines.forEach(function(ln){
+    rowsMeta.push({cells:['',ln.code,ln.size,ln.material,ln.book,ln.page,ln.number,ln.qty],img:ln.prodImg||ln.colorImg||''});
+    (ln.accs||[]).forEach(function(a){
+      rowsMeta.push({cells:['','   '+a.code,a.atype||'','','','','',(a.qty+(a.unit?(' '+a.unit):''))],img:a.img||''});
+    });
+  });
+
+  // fetch all images first
+  Promise.all(rowsMeta.map(function(r){ return imgToU8(r.img); })).then(function(imgs){
+    var media=[], drawings=[], drawRels=[], picId=2;
+    imgs.forEach(function(u8,i){
+      if(!u8) return;
+      var mi=media.length+1, rid='rId'+mi, file='image'+mi+'.jpeg';
+      media.push({name:'xl/media/'+file,data:u8});
+      drawRels.push('<Relationship Id="'+rid+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/'+file+'"/>');
+      var rowIdx=i+1; // sheet data rows start at 2 -> drawing row index = rowIdx (0-based, header=0)
+      var cx=90*EMU, cy=64*EMU, off=8000;
+      drawings.push('<xdr:oneCellAnchor><xdr:from><xdr:col>0</xdr:col><xdr:colOff>'+off+'</xdr:colOff><xdr:row>'+rowIdx+'</xdr:row><xdr:rowOff>'+off+'</xdr:rowOff></xdr:from>'+
+        '<xdr:ext cx="'+cx+'" cy="'+cy+'"/>'+
+        '<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="'+(picId++)+'" name="p'+mi+'"/><xdr:cNvPicPr/></xdr:nvPicPr>'+
+        '<xdr:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="'+rid+'"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>'+
+        '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="'+cx+'" cy="'+cy+'"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>');
+    });
+    var hasImg=media.length>0;
+
+    // sheet rows
+    function cellXml(ref,val,isNum){
+      if(val===''||val==null) return '<c r="'+ref+'"/>';
+      if(isNum && /^-?\d+(\.\d+)?$/.test(String(val).trim())) return '<c r="'+ref+'"><v>'+val+'</v></c>';
+      return '<c r="'+ref+'" t="inlineStr"><is><t xml:space="preserve">'+xesc(val)+'</t></is></c>';
+    }
+    var COLL=['A','B','C','D','E','F','G','H'];
+    var sheetRows='<row r="1" ht="20" customHeight="1">'+COLS.map(function(h,i){return cellXml(COLL[i]+'1',h,false);}).join('')+'</row>';
+    rowsMeta.forEach(function(r,i){
+      var rr=i+2;
+      sheetRows+='<row r="'+rr+'" ht="54" customHeight="1">'+r.cells.map(function(v,ci){return cellXml(COLL[ci]+rr,v,ci===7);}).join('')+'</row>';
+    });
+    var colsXml='<cols><col min="1" max="1" width="14" customWidth="1"/><col min="2" max="2" width="14" customWidth="1"/><col min="3" max="3" width="18" customWidth="1"/><col min="4" max="4" width="12" customWidth="1"/><col min="5" max="5" width="20" customWidth="1"/><col min="6" max="6" width="10" customWidth="1"/><col min="7" max="7" width="14" customWidth="1"/><col min="8" max="8" width="12" customWidth="1"/></cols>';
+    var sheetXml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+      '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'+
+      colsXml+'<sheetData>'+sheetRows+'</sheetData>'+(hasImg?'<drawing r:id="rId1"/>':'')+'</worksheet>';
+
+    var files=[
+      {name:'[Content_Types].xml',data:strU8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="jpeg" ContentType="image/jpeg"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'+(hasImg?'<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>':'')+'</Types>')},
+      {name:'_rels/.rels',data:strU8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>')},
+      {name:'xl/workbook.xml',data:strU8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Order" sheetId="1" r:id="rId1"/></sheets></workbook>')},
+      {name:'xl/_rels/workbook.xml.rels',data:strU8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>')},
+      {name:'xl/worksheets/sheet1.xml',data:strU8(sheetXml)}
+    ];
+    if(hasImg){
+      files.push({name:'xl/worksheets/_rels/sheet1.xml.rels',data:strU8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>')});
+      files.push({name:'xl/drawings/drawing1.xml',data:strU8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'+drawings.join('')+'</xdr:wsDr>')});
+      files.push({name:'xl/drawings/_rels/drawing1.xml.rels',data:strU8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+drawRels.join('')+'</Relationships>')});
+      media.forEach(function(m){ files.push(m); });
+    }
+
+    var blob=makeZip(files);
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download=(order.name||'order').replace(/[^\w\-]+/g,'_')+'.xlsx'; a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); },4000);
+    el('btnXls').textContent='Export Excel';
+    var missing=imgs.filter(function(x){return !x;}).length;
+    if(missing) setCloud('ok','Excel exported ('+missing+' image(s) unavailable)');
+  }).catch(function(e){ el('btnXls').textContent='Export Excel'; alert('Excel export failed: '+e.message); });
+}
+
+/* ---------- Import previous Proforma Invoices (.xlsx) ---------- */
+function dec(s){ return String(s==null?'':s).replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/\s+/g,' ').trim(); }
+function colToNum(c){ var n=0; for(var i=0;i<c.length;i++) n=n*26+(c.charCodeAt(i)-64); return n; }
+
+function unzipParts(buf){
+  var u8=new Uint8Array(buf), dv=new DataView(buf), eocd=-1;
+  for(var i=u8.length-22;i>=0;i--){ if(dv.getUint32(i,true)===0x06054b50){ eocd=i; break; } }
+  if(eocd<0) throw new Error('not a zip/xlsx');
+  var count=dv.getUint16(eocd+10,true), off=dv.getUint32(eocd+16,true), p=off, files={};
+  for(var n=0;n<count;n++){
+    var comp=dv.getUint16(p+10,true), csize=dv.getUint32(p+20,true);
+    var nameLen=dv.getUint16(p+28,true), extraLen=dv.getUint16(p+30,true), commLen=dv.getUint16(p+32,true);
+    var lho=dv.getUint32(p+42,true);
+    var name=new TextDecoder().decode(u8.subarray(p+46,p+46+nameLen));
+    var lNameLen=dv.getUint16(lho+26,true), lExtra=dv.getUint16(lho+28,true);
+    var dataStart=lho+30+lNameLen+lExtra;
+    files[name]={comp:comp,raw:u8.subarray(dataStart,dataStart+csize)};
+    p+=46+nameLen+extraLen+commLen;
+  }
+  return files;
+}
+function inflateRaw(u8){
+  if(typeof DecompressionStream==='undefined') return Promise.reject(new Error('Browser too old (no DecompressionStream). Use latest Chrome/Edge.'));
+  var ds=new DecompressionStream('deflate-raw');
+  return new Response(new Blob([u8]).stream().pipeThrough(ds)).arrayBuffer().then(function(a){ return new Uint8Array(a); });
+}
+function partText(files,name){
+  var f=files[name]; if(!f) return Promise.resolve(null);
+  if(f.comp===0) return Promise.resolve(new TextDecoder().decode(f.raw));
+  return inflateRaw(f.raw).then(function(b){ return new TextDecoder().decode(b); });
+}
+function partBytes(files,name){ var f=files[name]; if(!f) return Promise.resolve(null); if(f.comp===0) return Promise.resolve(f.raw); return inflateRaw(f.raw); }
+function u8ToB64(u8){ var s='',CH=0x8000; for(var i=0;i<u8.length;i+=CH){ s+=String.fromCharCode.apply(null,u8.subarray(i,Math.min(i+CH,u8.length))); } return btoa(s); }
+function resolveRel(fromDir,target){ var parts=(fromDir+target).split('/'),out=[]; parts.forEach(function(p){ if(p==='..')out.pop(); else if(p!=='.'&&p!=='')out.push(p); }); return out.join('/'); }
+function downscale(dataUrl,max){ return new Promise(function(res){ var img=new Image(); img.onload=function(){ var w=img.width,h=img.height; if(w>h&&w>max){h=Math.round(h*max/w);w=max;}else if(h>max){w=Math.round(w*max/h);h=max;} var cv=document.createElement('canvas'); cv.width=w||1; cv.height=h||1; cv.getContext('2d').drawImage(img,0,0,w,h); try{res(cv.toDataURL('image/jpeg',0.72));}catch(e){res('');} }; img.onerror=function(){res('');}; img.src=dataUrl; }); }
+/* extract embedded images anchored per (row,col) from the sheet's drawing */
+function extractDrawingImages(files,sheetName){
+  var base=sheetName.split('/').pop();
+  return partText(files,'xl/worksheets/_rels/'+base+'.rels').then(function(relsXml){
+    var drawingName='xl/drawings/drawing1.xml';
+    if(relsXml){ var m=/Target="([^"]*drawings\/[^"]+\.xml)"/.exec(relsXml); if(m) drawingName=resolveRel('xl/worksheets/',m[1]); }
+    if(!files[drawingName]) return [];
+    var dbase=drawingName.split('/').pop();
+    return Promise.all([partText(files,drawingName),partText(files,'xl/drawings/_rels/'+dbase+'.rels')]).then(function(a){
+      var dxml=a[0],drels=a[1]||''; if(!dxml) return [];
+      var ridMap={},rr=/Id="([^"]+)"[^>]*Target="([^"]+)"/g,rm; while(rm=rr.exec(drels)){ ridMap[rm[1]]=resolveRel('xl/drawings/',rm[2]); }
+      var anchors=dxml.match(/<xdr:(?:one|two)CellAnchor[\s\S]*?<\/xdr:(?:one|two)CellAnchor>/g)||[];
+      var list=[],used={};
+      anchors.forEach(function(an){ var col=(an.match(/<xdr:from>[\s\S]*?<xdr:col>(\d+)/)||[])[1]; var row=(an.match(/<xdr:from>[\s\S]*?<xdr:row>(\d+)/)||[])[1]; var e=(an.match(/r:embed="([^"]+)"/)||[])[1]; if(col==null||row==null||!e||!ridMap[e])return; list.push({col:+col,row:+row,media:ridMap[e]}); used[ridMap[e]]=1; });
+      return Promise.all(Object.keys(used).map(function(nm){ return partBytes(files,nm).then(function(b){ return {nm:nm,b:b}; }); })).then(function(res){
+        var url={}; res.forEach(function(x){ if(x.b){ var ext=/\.jpe?g$/i.test(x.nm)?'jpeg':'png'; url[x.nm]='data:image/'+ext+';base64,'+u8ToB64(x.b); } });
+        var flat=[]; list.forEach(function(it){ if(url[it.media]) flat.push({col:it.col,row:it.row,dataUrl:url[it.media]}); });
+        return flat;
+      });
+    });
+  }).catch(function(){ return []; });
+}
+function parseShared(xml){
+  if(!xml) return [];
+  var out=[], re=/<si>([\s\S]*?)<\/si>/g, m;
+  while(m=re.exec(xml)){ var ts=m[1].match(/<t[^>]*>([\s\S]*?)<\/t>/g)||[]; out.push(dec(ts.map(function(t){return t.replace(/<[^>]*>/g,'');}).join(''))); }
+  return out;
+}
+function sheetGrid(xml,shared){
+  var rows=[], rowRe=/<row[^>]*r="(\d+)"[^>]*>([\s\S]*?)<\/row>/g, rm;
+  while(rm=rowRe.exec(xml)){
+    var rn=+rm[1], cells={};
+    var cRe=/<c r="([A-Z]+)(\d+)"(?:[^>]*t="([^"]*)")?[^>]*>([\s\S]*?)<\/c>|<c r="([A-Z]+)(\d+)"[^>]*\/>/g, cm;
+    while(cm=cRe.exec(rm[2])){
+      var col=cm[1]||cm[5]; if(!col) continue; var t=cm[3], inner=cm[4]||'', val='';
+      var vm=/<v>([\s\S]*?)<\/v>/.exec(inner), ism=/<t[^>]*>([\s\S]*?)<\/t>/.exec(inner);
+      if(t==='s'&&vm) val=shared[+vm[1]]||''; else if(t==='inlineStr'&&ism) val=ism[1]; else if(vm) val=vm[1];
+      val=dec(val); if(val) cells[colToNum(col)]=val;
+    }
+    rows[rn]=cells;
+  }
+  return rows;
+}
+var reSize=/^\d+\s*[*x]\s*\d+\s*[*x]\s*\d+\s*mm/i,
+    reCode=/^[A-Za-z][A-Za-z\-\/]*\s*-?\s*\d+/,
+    rePanel=/^(kp|k-pvc|k-wpc|kw)/i,
+    reColorNum=/\d{3,}-\d|\d{5,}/;
+function looksCode(v){ return v && (reCode.test(v)||/^clip/i.test(v)) && !reSize.test(v); }
+function classify(code){ if(/^clip/i.test(code))return 'clip'; if(rePanel.test(code))return 'panel'; if(/^l/i.test(code))return 'L'; if(/^t/i.test(code))return 'T'; if(/^u/i.test(code))return 'U'; return 'panel'; }
+function inum(v){ if(v==null||v==='')return ''; var n=parseFloat(String(v).replace(/[^\d.\-]/g,'')); return isNaN(n)?'':Math.round(n); }
+function parsePI(rows){
+  var hi=-1;
+  for(var r=0;r<rows.length;r++){ var c=rows[r]||{}, vals=Object.keys(c).map(function(k){return c[k].toLowerCase();}); if(vals.some(function(v){return /size/.test(v);})&&vals.some(function(v){return /qty|quantity/.test(v);})){ hi=r; break; } }
+  if(hi<0) return null;
+  var hdr=rows[hi], cols=Object.keys(hdr).map(Number);
+  function find(re){ return cols.filter(function(c){ return re.test(hdr[c].toLowerCase()); }); }
+  var dataRows=[];
+  for(var r2=hi+1;r2<rows.length;r2++){ var cc=rows[r2]||{}; var ks=Object.keys(cc); if(!ks.length) continue; var first=cc[Math.min.apply(null,ks.map(Number))]||''; if(/^total/i.test(String(first))) break; dataRows.push({srcRow:r2,cells:cc}); }
+  var codeCands=find(/^(item|number)$/i); if(!codeCands.length) codeCands=cols;
+  var codeCol=codeCands.map(function(c){return [c,dataRows.filter(function(dr){return looksCode(dr.cells[c]);}).length];}).sort(function(a,b){return b[1]-a[1];})[0][0];
+  var sizeCol=find(/size/i)[0]||cols.map(function(c){return [c,dataRows.filter(function(dr){return reSize.test(dr.cells[c]||'');}).length];}).sort(function(a,b){return b[1]-a[1];})[0][0];
+  var qtyCol=find(/^qty$|quantity/i)[0];
+  var colorCands=find(/colou?r|book/i).filter(function(c){return c!==codeCol&&c!==sizeCol;});
+  var colorTop=colorCands.map(function(c){return [c,dataRows.filter(function(dr){return dr.cells[c];}).length];}).sort(function(a,b){return b[1]-a[1];})[0];
+  var colorCol=colorTop&&colorTop[1]?colorTop[0]:null;
+  var dieTop=cols.filter(function(c){return c!==codeCol;}).map(function(c){return [c,dataRows.filter(function(dr){return /^(by|y|yh|dh|d)\d+/i.test(dr.cells[c]||'');}).length];}).sort(function(a,b){return b[1]-a[1];})[0];
+  var dieCol=dieTop&&dieTop[1]>=2?dieTop[0]:null;
+  var items=dataRows.map(function(dr){
+    var row=dr.cells;
+    var code=(row[codeCol]||'').replace(/\s*\(.+?\)\s*/,'').trim(); if(!looksCode(code)) return null;
+    var colorRaw=colorCol?row[colorCol]:'';
+    return { code:code, kind:classify(code), size:row[sizeCol]||'', qty:inum(row[qtyCol]), srcRow:dr.srcRow,
+      number:reColorNum.test(colorRaw)?colorRaw:'', page:(colorRaw&&!reColorNum.test(colorRaw))?colorRaw:'',
+      die:dieCol?(row[dieCol]||''):'' };
+  }).filter(Boolean);
+  var lines=[], last=null;
+  items.forEach(function(it){
+    if(it.kind==='panel'){ last={code:it.code,size:it.size,qty:it.qty,number:it.number,page:it.page,die:it.die,accs:[],_srcRow:it.srcRow}; lines.push(last); }
+    else { var a={code:it.code,atype:it.kind==='clip'?'Clips':(it.kind+'-Profile'),qty:it.qty,unit:it.kind==='clip'?'ctn':''}; if(last) last.accs.push(a); else lines.push({code:it.code,size:it.size,qty:it.qty,number:it.number,page:it.page,accs:[],_srcRow:it.srcRow}); }
+  });
+  return { lines:lines };
+}
+function detectSupplier(rows){
+  for(var r=0;r<Math.min(rows.length,8);r++){ var c=rows[r]||{}; var ks=Object.keys(c); for(var i=0;i<ks.length;i++){ var v=c[ks[i]]; if(/co\.,?\s*ltd|import|export|decoration|material|xinyt|xiecheng|haipai/i.test(v)){ var name=v.replace(/\s+/g,' ').split(/\s*(?:address|地址|no\.?\s*\d|tel|phone)/i)[0].trim(); return name.slice(0,60); } } }
+  return '';
+}
+
+function importFiles(fileList){
+  var files=Array.prototype.slice.call(fileList||[]); if(!files.length) return;
+  el('btnImport').textContent='reading…';
+  var allLines=[], suppliers={}, errors=[];
+  function importOne(file){
+    return file.arrayBuffer().then(function(buf){
+      var parts=unzipParts(buf);
+      return partText(parts,'xl/sharedStrings.xml').then(function(sx){
+        var shared=parseShared(sx);
+        var sheetNames=Object.keys(parts).filter(function(n){return /^xl\/worksheets\/sheet\d+\.xml$/i.test(n);}).sort();
+        var chain=Promise.resolve(null), picked=null, sup='', pickedSheet=null;
+        sheetNames.forEach(function(sn){ chain=chain.then(function(){ if(picked) return; return partText(parts,sn).then(function(sx2){ var rows=sheetGrid(sx2,shared); var res=parsePI(rows); if(res&&res.lines.length){ picked=res.lines; sup=detectSupplier(rows); pickedSheet=sn; } }); }); });
+        return chain.then(function(){
+          if(!picked){ errors.push(file.name+': no line items found'); return; }
+          return extractDrawingImages(parts,pickedSheet).then(function(list){
+            var cols={}; (list||[]).forEach(function(a){ (cols[a.col]=cols[a.col]||[]).push(a); });
+            var colIds=Object.keys(cols).map(Number);
+            function nearest(arr,pr){ return arr.slice().sort(function(a,b){return Math.abs(a.row-pr)-Math.abs(b.row-pr);})[0]; }
+            // "main" picture columns = an image on most panel rows (ignore stray singletons).
+            // Column semantics vary per supplier (cover / swatch / product photo), so we keep BOTH
+            // main columns and show both — the real colour swatch is always among them.
+            var thr=Math.max(2,Math.floor(picked.length*0.5));
+            var mainCols=colIds.filter(function(c){return cols[c].length>=thr;}); if(!mainCols.length) mainCols=colIds;
+            mainCols=mainCols.sort(function(a,b){return a-b;});
+            var colorCol=mainCols.length?mainCols[mainCols.length-1]:null; // rightmost ≈ swatch
+            var bookCol=mainCols.length>1?mainCols[0]:null;                // leftmost ≈ cover
+            picked.forEach(function(l){
+              var pr=(l._srcRow||0)-1;
+              if(colorCol!=null){ var s=nearest(cols[colorCol],pr); if(s) l._colorImgRaw=s.dataUrl; }
+              if(bookCol!=null){ var b=nearest(cols[bookCol],pr); if(b) l._bookImgRaw=b.dataUrl; }
+              l._file=file.name; l._supplier=sup;
+            });
+            allLines=allLines.concat(picked); if(sup) suppliers[sup]=1;
+          });
+        });
+      });
+    }).catch(function(e){ errors.push(file.name+': '+e.message); });
+  }
+  Promise.all(files.map(importOne)).then(function(){ el('btnImport').textContent='Import PI'; showImportPreview(allLines,Object.keys(suppliers),errors); });
+}
+
+function showImportPreview(lines,suppliers,errors){
+  if(!lines.length){ alert('No line items found.\n\n'+errors.join('\n')); return; }
+  var box=el('modalBox');
+  var withImg=lines.filter(function(l){return l._colorImgRaw;}).length;
+  var rowsHtml=lines.map(function(l){
+    var accs=(l.accs||[]).map(function(a){return a.code+'('+a.qty+')';}).join(', ');
+    return '<div class="accrow">'+
+      (l._bookImgRaw?'<img src="'+l._bookImgRaw+'">':'')+
+      (l._colorImgRaw?'<img src="'+l._colorImgRaw+'">':(l._bookImgRaw?'':'<img>'))+
+      '<div class="an"><b>'+esc(l.code)+'</b><small>'+esc(l.size)+' · qty '+esc(l.qty)+(l.number?(' · '+esc(l.number)):'')+(l.page?(' · p.'+esc(l.page)):'')+(accs?(' · '+esc(accs)):'')+'</small></div></div>';
+  }).join('');
+  box.innerHTML='<h3>Import preview — '+lines.length+' line(s)'+(withImg?(' · '+withImg+' with photo'):'')+'</h3>'+
+    (suppliers.length?'<label>Supplier</label><div style="margin-bottom:8px;color:var(--muted)">'+esc(suppliers.join(' / '))+'</div>':'')+
+    '<div style="max-height:40vh;overflow:auto;display:flex;flex-direction:column;gap:6px">'+rowsHtml+'</div>'+
+    (errors.length?'<div style="color:var(--danger);margin-top:8px;font-size:12px">'+errors.map(esc).join('<br>')+'</div>':'')+
+    '<label style="margin-top:10px"><input type="checkbox" id="impAppend"> Append to current order (otherwise replace)</label>'+
+    '<div class="foot"><button class="btn ghost" id="mCancel">Cancel</button><button class="btn primary" id="mImport">Import '+lines.length+' line(s)</button></div>';
+  el('modal').classList.remove('hide');
+  el('mCancel').onclick=closeModal;
+  el('mImport').onclick=function(){ var b=this; b.textContent='importing…'; b.disabled=true; commitImport(lines,suppliers,el('impAppend').checked); };
+}
+
+function ensureSupplier(name){
+  if(!name||!db) return null;
+  var ex=findId(cat.suppliers,function(v){return (v.name||'').toLowerCase()===name.toLowerCase();});
+  if(ex) return ex;
+  db.ref(OB+'/suppliers').push({name:name});
+  return null;
+}
+function ensurePanel(material,size,die){
+  if(!db||!size) return;
+  var ex=findId(cat.panelTypes,function(v){return v.size===size&&(v.material||'')===(material||'');});
+  if(!ex) db.ref(OB+'/panelTypes').push({name:die?('Die '+die):'Panel',material:material||'',size:size});
+}
+function commitImport(lines,suppliers,append){
+  var sup=suppliers[0]||'';
+  ensureSupplier(sup);
+  Promise.all(lines.map(function(l){
+    return Promise.all([
+      l._colorImgRaw?downscale(l._colorImgRaw,480):Promise.resolve(''),
+      l._bookImgRaw?downscale(l._bookImgRaw,480):Promise.resolve('')
+    ]).then(function(im){
+      var mat=/165\*22|200\*12|\*7\*/.test(l.size)?'PVC':'';
+      ensurePanel(mat,l.size,l.die);
+      return {
+        code:l.code, supplier:l._supplier||sup, supplierId:null,
+        material:mat, size:l.size, panelName:l.die?('Die '+l.die):'', panelImg:'',
+        book:'', bookImg:im[1]||'', page:l.page||'', number:l.number||'', colorImg:im[0]||'',
+        qty:String(l.qty||''),
+        prodImg: l.code ? (IMG_BASE+l.code.trim().toUpperCase()+'.jpg') : '',
+        accs:(l.accs||[]).map(function(a){ return {atype:a.atype,code:a.code,qty:String(a.qty||''),img:'',unit:a.unit||''}; })
+      };
+    });
+  })).then(function(newLines){
+    if(append){ order.lines=order.lines.concat(newLines); }
+    else{ order={name:(order.name||lines[0]._file||'Imported PI').replace(/\.xlsx$/i,''), supplierId:null, lines:newLines}; el('ordName').value=order.name; }
+    renderCards(); saveLocal(); closeModal();
+    setCloud('ok','imported '+newLines.length+' line(s) with photos');
+  });
+}
+
+el('btnImport').onclick=function(){ el('importFile').click(); };
+el('importFile').onchange=function(e){ importFiles(e.target.files); e.target.value=''; };
+
+/* keyboard: Enter in code field adds line */
+el('prodCode').addEventListener('keydown',function(e){ if(e.key==='Enter') el('btnAddLine').click(); });
+
+/* ---------- init ---------- */
+loadLocal();
+renderCards();
+renderAcc();
+})();
+</script>
+</body>
+</html>
