@@ -565,17 +565,18 @@ el('btnAddLine').onclick=function(){
 
 /* ---------- product catalog (code -> full spec) + quick add ---------- */
 function pkey(c){ return (c||'').trim().toUpperCase().replace(/[.#$/\[\]]/g,'_'); }
-function upsertProduct(line){
+function upsertProduct(line, fromPI){
   if(!db || !line || !line.code) return;
   var k=pkey(line.code); if(!k) return;
   var pq=parseFloat(line.qty)||0;
-  db.ref(OB+'/products/'+k).set({
-    code:line.code, supplier:line.supplier||'', material:line.material||'', size:line.size||'',
-    panelName:line.panelName||'', book:line.book||'', page:line.page||'', number:line.number||'',
-    colorImg:line.colorImg||'', bookImg:line.bookImg||'', prodImg:line.prodImg||'',
-    accs:(line.accs||[]).map(function(a){ var aq=parseFloat(a.qty)||0; return { atype:a.atype||'', code:a.code||'', pct: pq?Math.round(aq/pq*100):0, unit:a.unit||'', img:a.img||'' }; }),
-    updatedAt:Date.now()
-  }).catch(function(){});
+  var o={ code:line.code, updatedAt:Date.now() };
+  function setIf(f,v){ if(v!=='' && v!=null) o[f]=v; }
+  if(!fromPI) setIf('supplier', line.supplier); // PI invoice company isn't the "supplier" we track (Jacky/Belinda/…)
+  setIf('material',line.material); setIf('size',line.size); setIf('panelName',line.panelName);
+  setIf('book',line.book); setIf('page',line.page); setIf('number',line.number);
+  setIf('colorImg',line.colorImg); setIf('bookImg',line.bookImg); setIf('prodImg',line.prodImg);
+  if(line.accs && line.accs.length) o.accs=line.accs.map(function(a){ var aq=parseFloat(a.qty)||0; return { atype:a.atype||'', code:a.code||'', pct: pq?Math.round(aq/pq*100):0, unit:a.unit||'', img:a.img||'' }; });
+  db.ref(OB+'/products/'+k).update(o).catch(function(){}); // merge, never wipe existing fields
 }
 function lineFromProduct(p,qty){
   var q=parseFloat(qty)||0;
@@ -1031,7 +1032,7 @@ function commitImport(lines,suppliers,append){
       };
     });
   })).then(function(newLines){
-    newLines.forEach(upsertProduct); // build the reusable product catalog (code -> full spec)
+    newLines.forEach(function(l){ upsertProduct(l, true); }); // build catalog; keep PDF/manual supplier
     if(append){
       order.lines=order.lines.concat(newLines);
       renderCards(); saveLocal(); closeModal();
