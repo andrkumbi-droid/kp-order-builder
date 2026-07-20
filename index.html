@@ -968,41 +968,61 @@ function gdReady(){ return typeof google!=='undefined' && google.accounts && goo
 function gdImport(){
   if(!GDRIVE_CLIENT_ID){ alert('Google Drive import is not set up yet.\nAn OAuth Client ID still needs to be added.'); return; }
   if(!gdReady()){ alert('Google library still loading — try again in a moment.'); return; }
-  if(!gdTokenClient){ gdTokenClient=google.accounts.oauth2.initTokenClient({ client_id:GDRIVE_CLIENT_ID, scope:'https://www.googleapis.com/auth/drive.readonly', callback:function(resp){ if(resp&&resp.access_token){ gdToken=resp.access_token; gdSearch(''); } else alert('Google sign-in failed.'); } }); }
+  if(!gdTokenClient){ gdTokenClient=google.accounts.oauth2.initTokenClient({ client_id:GDRIVE_CLIENT_ID, scope:'https://www.googleapis.com/auth/drive.readonly', callback:function(resp){ if(resp&&resp.access_token){ gdToken=resp.access_token; gdBrowseStart(); } else alert('Google sign-in failed.'); } }); }
   gdTokenClient.requestAccessToken({ prompt: gdToken?'':'consent' });
 }
 function gdApi(url){ return fetch(url,{ headers:{ Authorization:'Bearer '+gdToken } }); }
-function gdSearch(term){
-  var base="mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' and trashed=false";
-  var q= term ? base+" and name contains '"+term.replace(/'/g,"\\'")+"'" : base+" and (name contains 'PI' or name contains 'Proforma' or name contains 'invoice' or name contains 'pimmigrand' or name contains 'Jacky' or name contains 'Belinda' or name contains 'Andre')";
-  var url='https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(q)+'&orderBy=modifiedTime desc&pageSize=200&fields=files(id,name,size,modifiedTime)&supportsAllDrives=true&includeItemsFromAllDrives=true';
-  gdApi(url).then(function(r){ return r.json(); }).then(function(d){ if(d.error){ alert('Drive: '+d.error.message); return; } gdShowList(d.files||[]); }).catch(function(e){ alert('Drive error: '+e.message); });
+var gdStack=[{id:'root',name:'My Drive'}];
+var gdSel={};
+function gdBrowseStart(){ gdStack=[{id:'root',name:'My Drive'}]; gdSel={}; gdBrowse(); }
+function gdBrowse(){
+  var cur=gdStack[gdStack.length-1];
+  var q = cur.id==='shared' ? "sharedWithMe=true and trashed=false" : "'"+cur.id+"' in parents and trashed=false";
+  var url='https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(q)+'&orderBy='+encodeURIComponent('folder,name')+'&pageSize=500&fields=files(id,name,mimeType,size,modifiedTime)&supportsAllDrives=true&includeItemsFromAllDrives=true';
+  gdApi(url).then(function(r){ return r.json(); }).then(function(d){ if(d.error){ alert('Drive: '+d.error.message); return; } gdRender(d.files||[],false); }).catch(function(e){ alert('Drive error: '+e.message); });
 }
-function gdShowList(files){
+function gdSearchAll(term){
+  var q="mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' and trashed=false and name contains '"+term.replace(/'/g,"\\'")+"'";
+  var url='https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(q)+'&orderBy=modifiedTime desc&pageSize=200&fields=files(id,name,mimeType,size,modifiedTime)&supportsAllDrives=true&includeItemsFromAllDrives=true';
+  gdApi(url).then(function(r){ return r.json(); }).then(function(d){ if(d.error){ alert('Drive: '+d.error.message); return; } gdRender(d.files||[],true); }).catch(function(e){ alert('Drive error: '+e.message); });
+}
+function gdIsXlsx(f){ return f.mimeType==='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || /\.xlsx$/i.test(f.name); }
+function gdRender(files,searchMode){
   var box=el('modalBox');
-  var rows=files.map(function(f){
-    var kb=f.size?Math.round(f.size/1024):0;
-    var big=kb>=150;
-    return '<label class="accrow" style="cursor:pointer"><input type="checkbox" class="gdchk" data-id="'+f.id+'" data-name="'+esc(f.name)+'" '+(big?'checked':'')+' style="width:auto">'+
-      '<div class="an"><b>'+esc(f.name)+'</b><small>'+(kb?kb+' KB · ':'')+esc((f.modifiedTime||'').slice(0,10))+(big?'':' · small (likely no images)')+'</small></div></label>';
-  }).join('');
-  box.innerHTML='<h3>Google Drive — '+files.length+' file(s)</h3>'+
-    '<div class="row" style="margin-bottom:8px"><input class="field" id="gdTerm" placeholder="filter by name…"><button class="btn" id="gdGo">Search</button></div>'+
-    '<div style="max-height:46vh;overflow:auto;display:flex;flex-direction:column;gap:5px">'+(rows||'<div class="empty">No files found.</div>')+'</div>'+
-    '<div class="foot"><button class="btn ghost" id="mCancel">Cancel</button><button class="btn primary" id="gdImp">Import selected</button></div>';
+  var folders=files.filter(function(f){ return f.mimeType==='application/vnd.google-apps.folder'; });
+  var xlsx=files.filter(gdIsXlsx);
+  var atRoot=gdStack.length===1 && gdStack[0].id==='root';
+  var nav = searchMode
+    ? '<a href="#" id="gdBack" style="color:var(--accent)">← back to folders</a>'
+    : gdStack.map(function(n,i){ return '<a href="#" data-crumb="'+i+'" style="color:var(--accent)">'+esc(n.name)+'</a>'; }).join(' <span style="color:var(--muted)">/</span> ');
+  var html='';
+  if(!searchMode && atRoot) html+='<div class="accrow" data-folder="shared" data-fname="Shared with me" style="cursor:pointer"><div class="an"><b>📤 Shared with me</b></div></div>';
+  folders.forEach(function(f){ html+='<div class="accrow" data-folder="'+f.id+'" data-fname="'+esc(f.name)+'" style="cursor:pointer"><div class="an"><b>📁 '+esc(f.name)+'</b></div></div>'; });
+  xlsx.forEach(function(f){ var kb=f.size?Math.round(f.size/1024):0; var big=kb>=150; var ck=gdSel[f.id]?'checked':''; html+='<label class="accrow" style="cursor:pointer"><input type="checkbox" class="gdchk" data-id="'+f.id+'" data-name="'+esc(f.name)+'" '+ck+' style="width:auto"><div class="an"><b>'+esc(f.name)+'</b><small>'+(kb?kb+' KB · ':'')+esc((f.modifiedTime||'').slice(0,10))+(big?'':' · small')+'</small></div></label>'; });
+  if(!html) html='<div class="empty">Empty folder.</div>';
+  box.innerHTML='<h3>Google Drive</h3>'+
+    '<div style="font-size:12px;margin-bottom:6px">'+nav+'</div>'+
+    '<div class="row" style="margin-bottom:8px"><input class="field" id="gdTerm" placeholder="search all Drive by name…"><button class="btn" id="gdGo">Search</button></div>'+
+    '<div style="max-height:44vh;overflow:auto;display:flex;flex-direction:column;gap:4px">'+html+'</div>'+
+    '<div class="foot"><span id="gdSelCount" style="margin-right:auto;color:var(--muted);font-size:12px"></span><button class="btn ghost" id="mCancel">Close</button><button class="btn primary" id="gdImp">Import selected</button></div>';
   el('modal').classList.remove('hide');
   el('mCancel').onclick=closeModal;
-  el('gdGo').onclick=function(){ gdSearch(el('gdTerm').value.trim()); };
-  el('gdTerm').onkeydown=function(e){ if(e.key==='Enter') gdSearch(this.value.trim()); };
-  el('gdImp').onclick=function(){
-    var chosen=Array.prototype.slice.call(box.querySelectorAll('.gdchk:checked'));
-    if(!chosen.length){ alert('Select at least one file.'); return; }
-    this.textContent='downloading…'; this.disabled=true;
-    Promise.all(chosen.map(function(c){
-      var id=c.getAttribute('data-id'), name=c.getAttribute('data-name');
-      return gdApi('https://www.googleapis.com/drive/v3/files/'+id+'?alt=media&supportsAllDrives=true').then(function(r){ return r.arrayBuffer(); }).then(function(ab){ return { name:name, arrayBuffer:function(){ return Promise.resolve(ab); } }; });
-    })).then(function(fileObjs){ importFiles(fileObjs); }).catch(function(e){ alert('Download failed: '+e.message); el('gdImp').textContent='Import selected'; el('gdImp').disabled=false; });
-  };
+  var back=el('gdBack'); if(back) back.onclick=function(e){ e.preventDefault(); gdBrowse(); };
+  el('gdGo').onclick=function(){ var t=el('gdTerm').value.trim(); if(t) gdSearchAll(t); else gdBrowse(); };
+  el('gdTerm').onkeydown=function(e){ if(e.key==='Enter'){ var t=this.value.trim(); if(t) gdSearchAll(t); else gdBrowse(); } };
+  Array.prototype.forEach.call(box.querySelectorAll('[data-folder]'),function(r){ r.onclick=function(e){ e.preventDefault(); gdStack.push({id:r.getAttribute('data-folder'),name:r.getAttribute('data-fname')}); gdBrowse(); }; });
+  Array.prototype.forEach.call(box.querySelectorAll('[data-crumb]'),function(a){ a.onclick=function(e){ e.preventDefault(); gdStack=gdStack.slice(0,(+a.getAttribute('data-crumb'))+1); gdBrowse(); }; });
+  Array.prototype.forEach.call(box.querySelectorAll('.gdchk'),function(c){ c.onchange=function(){ if(c.checked) gdSel[c.getAttribute('data-id')]=c.getAttribute('data-name'); else delete gdSel[c.getAttribute('data-id')]; gdUpdateSel(); }; });
+  el('gdImp').onclick=gdDoImport;
+  gdUpdateSel();
+}
+function gdUpdateSel(){ var n=Object.keys(gdSel).length; var e=el('gdSelCount'); if(e) e.textContent=n?(n+' selected'):''; var b=el('gdImp'); if(b) b.textContent=n?('Import '+n):'Import selected'; }
+function gdDoImport(){
+  var ids=Object.keys(gdSel); if(!ids.length){ alert('Tick at least one .xlsx file first.'); return; }
+  var b=el('gdImp'); b.textContent='downloading…'; b.disabled=true;
+  Promise.all(ids.map(function(id){ var name=gdSel[id];
+    return gdApi('https://www.googleapis.com/drive/v3/files/'+id+'?alt=media&supportsAllDrives=true').then(function(r){ return r.arrayBuffer(); }).then(function(ab){ return { name:name, arrayBuffer:function(){ return Promise.resolve(ab); } }; });
+  })).then(function(fileObjs){ importFiles(fileObjs); }).catch(function(e){ alert('Download failed: '+e.message); b.textContent='Import selected'; b.disabled=false; });
 }
 el('btnDrive').onclick=gdImport;
 
