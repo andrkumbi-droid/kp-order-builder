@@ -951,11 +951,44 @@ function commitImport(lines,suppliers,append){
       };
     });
   })).then(function(newLines){
-    if(append){ order.lines=order.lines.concat(newLines); }
-    else{ order={name:(order.name||lines[0]._file||'Imported PI').replace(/\.xlsx$/i,''), supplierId:null, lines:newLines}; el('ordName').value=order.name; }
-    renderCards(); saveLocal(); closeModal();
-    setCloud('ok','imported '+newLines.length+' line(s) with photos');
+    if(append){
+      order.lines=order.lines.concat(newLines);
+      renderCards(); saveLocal(); closeModal();
+      // auto-save the current order to the cloud too
+      order.name=el('ordName').value.trim()||order.name||('Order '+new Date().toLocaleDateString());
+      saveCurrentOrder(function(){ setCloud('ok','added & saved '+newLines.length+' line(s)'); });
+      return;
+    }
+    // replace mode: save EACH imported PI file as its own cloud order
+    var groups={}, keys=[];
+    newLines.forEach(function(l,i){ var fn=(lines[i]&&lines[i]._file)||'Imported PI'; if(!groups[fn]){groups[fn]=[];keys.push(fn);} groups[fn].push(l); });
+    if(!db){ // offline fallback: just load into board
+      order={name:keys[0].replace(/\.xlsx$/i,''), supplierId:null, lines:newLines}; el('ordName').value=order.name;
+      renderCards(); saveLocal(); closeModal(); setCloud('err','imported (offline — not saved to cloud)'); return;
+    }
+    var saved=0, lastKey=null, lastPayload=null, chain=Promise.resolve();
+    keys.forEach(function(fn){
+      chain=chain.then(function(){
+        var g=groups[fn]; ensureSupplier((g[0]&&g[0].supplier)||'');
+        var payload={ name:fn.replace(/\.xlsx$/i,''), supplierId:null, lines:g, savedAt:Date.now(), fromImport:true };
+        var r=db.ref(OB+'/orders').push();
+        return r.set(payload).then(function(){ saved++; lastKey=r.key; lastPayload=payload; });
+      });
+    });
+    chain.then(function(){
+      if(lastPayload){ order={name:lastPayload.name, supplierId:lastPayload.supplierId, lines:lastPayload.lines, _id:lastKey}; el('ordName').value=order.name; }
+      renderCards(); saveLocal(); closeModal();
+      setCloud('ok','imported & saved '+saved+' order(s)');
+      alert('✓ Imported and SAVED '+saved+' order'+(saved>1?'s':'')+' to the cloud.\nFind them all via the "Open" button.');
+    }).catch(function(e){ closeModal(); alert('Import saved partially — error: '+e.message); });
   });
+}
+/* save the current board order to Firebase (create or update by _id) */
+function saveCurrentOrder(done){
+  if(!db){ if(done)done(); return; }
+  var payload={ name:order.name, supplierId:order.supplierId||null, lines:order.lines, savedAt:Date.now() };
+  if(order._id){ db.ref(OB+'/orders/'+order._id).set(payload).then(function(){ if(done)done(); }); }
+  else{ var r=db.ref(OB+'/orders').push(); r.set(payload).then(function(){ order._id=r.key; saveLocal(); if(done)done(); }); }
 }
 
 el('btnImport').onclick=function(){ el('importFile').click(); };
