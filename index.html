@@ -962,7 +962,7 @@ el('btnImport').onclick=function(){ el('importFile').click(); };
 el('importFile').onchange=function(e){ importFiles(e.target.files); e.target.value=''; };
 
 /* ---------- Import directly from Google Drive ---------- */
-var GDRIVE_CLIENT_ID='242379157651-b4ci6s96bejoafpnp63q40di3330i62t.apps.googleusercontent.com'; /* OAuth Web Client ID (GCP kp-wallpanel) */
+var GDRIVE_CLIENT_ID='794246593779-35lkq73cmbf9hihgj1tdofajsv73rkhi.apps.googleusercontent.com'; /* OAuth Web Client ID (GCP kp-wallpanel) */
 var gdToken=null, gdTokenClient=null;
 function gdReady(){ return typeof google!=='undefined' && google.accounts && google.accounts.oauth2; }
 function gdImport(){
