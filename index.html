@@ -148,6 +148,7 @@
   <input type="file" id="importFile" accept=".xlsx" multiple style="display:none">
   <button class="btn" id="btnLoad">Open</button>
   <button class="btn" id="btnSave">Save</button>
+  <button class="btn" id="btnPhotos">📷 Catalog</button>
   <button class="btn primary" id="btnPdf">Export PDF</button>
   <button class="btn green" id="btnXls">Export Excel</button>
   <span class="cloud"><span class="dot" id="cloudDot"></span><span id="cloudTxt">connecting…</span></span>
@@ -1075,6 +1076,65 @@ function saveCurrentOrder(done){
 
 el('btnImport').onclick=function(){ el('importFile').click(); };
 el('importFile').onchange=function(e){ importFiles(e.target.files); e.target.value=''; };
+
+/* ---------- 📷 Catalog photos: book covers + missing colour swatches ---------- */
+function photoFromFile(file,done){
+  if(!file){ return; }
+  var r=new FileReader();
+  r.onload=function(){ var img=new Image(); img.onload=function(){
+    var max=560,w=img.width,h=img.height;
+    if(w>h&&w>max){h=Math.round(h*max/w);w=max;} else if(h>max){w=Math.round(w*max/h);h=max;}
+    var cv=document.createElement('canvas'); cv.width=w||1; cv.height=h||1; cv.getContext('2d').drawImage(img,0,0,w,h);
+    try{ done(cv.toDataURL('image/jpeg',0.72)); }catch(e){ alert('Photo error'); }
+  }; img.onerror=function(){ alert('Could not read image'); }; img.src=r.result; };
+  r.readAsDataURL(file);
+}
+function colorGroups(){
+  var g={};
+  entries(cat.products).forEach(function(e){
+    var k=e[0],p=e[1]; var ref=((p.page||'')+' '+(p.number||'')).trim(); if(!ref) return;
+    if(!g[ref]) g[ref]={ref:ref,codes:[],keys:[],img:''};
+    g[ref].codes.push(p.code||k); g[ref].keys.push(k);
+    if(!g[ref].img && p.colorImg) g[ref].img=p.colorImg;
+  });
+  return g;
+}
+function applyColorToGroup(ref,url){
+  if(!url) return;
+  entries(cat.products).forEach(function(e){
+    var k=e[0],p=e[1]; if(((p.page||'')+' '+(p.number||'')).trim()===ref && !p.colorImg){ cat.products[k].colorImg=url; db.ref(OB+'/products/'+k).update({colorImg:url}); }
+  });
+}
+function thumb(url){ return url?'<img src="'+esc(url)+'">':'<span style="width:48px;height:36px;flex:none;background:#0c0f13;border-radius:5px;display:inline-block"></span>'; }
+function openPhotos(){
+  if(!db){ alert('No cloud connection.'); return; }
+  var box=el('modalBox');
+  var booksHtml=entries(cat.colorBooks).map(function(e){ var id=e[0],b=e[1];
+    return '<div class="accrow">'+thumb(b.img)+'<div class="an"><b>'+esc(b.name)+'</b><small>'+esc(b.brand||'')+'</small></div>'+
+      '<label class="btn" style="white-space:nowrap">📷 Photo<input type="file" accept="image/*" style="display:none" data-book="'+id+'"></label></div>';
+  }).join('');
+  var groups=colorGroups(), open=[];
+  Object.keys(groups).forEach(function(ref){ var gp=groups[ref]; var missing=gp.keys.filter(function(k){return !(cat.products[k]&&cat.products[k].colorImg);}); if(missing.length) open.push(gp); });
+  open.sort(function(a,b){ return b.keys.length-a.keys.length; });
+  var colHtml=open.map(function(gp){
+    return '<div class="accrow">'+thumb(gp.img)+
+      '<div class="an"><b>'+esc(gp.ref)+'</b><small>'+esc(gp.codes.slice(0,8).join(', '))+(gp.codes.length>8?(' +'+(gp.codes.length-8)):'')+'</small></div>'+
+      (gp.img?'<button class="btn green" style="white-space:nowrap" data-applycg="'+esc(gp.ref)+'">use for all</button>':'')+
+      '<label class="btn" style="white-space:nowrap">📷<input type="file" accept="image/*" style="display:none" data-cg="'+esc(gp.ref)+'"></label></div>';
+  }).join('');
+  box.innerHTML='<h3>📷 Catalog photos</h3>'+
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:6px">Book covers</div>'+
+    '<div style="max-height:26vh;overflow:auto;display:flex;flex-direction:column;gap:5px">'+(booksHtml||'<div class="empty">No books</div>')+'</div>'+
+    '<div style="font-size:12px;color:var(--muted);margin:12px 0 6px">Colours missing a photo ('+open.length+')</div>'+
+    '<div style="max-height:34vh;overflow:auto;display:flex;flex-direction:column;gap:5px">'+(colHtml||'<div class="empty">All colours have a photo 🎉</div>')+'</div>'+
+    '<div class="foot"><button class="btn ghost" id="mCancel">Close</button></div>';
+  el('modal').classList.remove('hide');
+  el('mCancel').onclick=closeModal;
+  Array.prototype.forEach.call(box.querySelectorAll('input[data-book]'),function(inp){ inp.onchange=function(){ var id=inp.getAttribute('data-book'); photoFromFile(inp.files[0],function(url){ cat.colorBooks[id].img=url; db.ref(OB+'/colorBooks/'+id).update({img:url}); openPhotos(); }); }; });
+  Array.prototype.forEach.call(box.querySelectorAll('input[data-cg]'),function(inp){ inp.onchange=function(){ var ref=inp.getAttribute('data-cg'); photoFromFile(inp.files[0],function(url){ applyColorToGroup(ref,url); openPhotos(); }); }; });
+  Array.prototype.forEach.call(box.querySelectorAll('[data-applycg]'),function(btn){ btn.onclick=function(){ var ref=btn.getAttribute('data-applycg'); applyColorToGroup(ref,groups[ref].img); openPhotos(); }; });
+}
+el('btnPhotos').onclick=openPhotos;
 
 /* ---------- Import directly from Google Drive ---------- */
 var GDRIVE_CLIENT_ID='794246593779-35lkq73cmbf9hihgj1tdofajsv73rkhi.apps.googleusercontent.com'; /* OAuth Web Client ID (GCP kp-wallpanel) */
