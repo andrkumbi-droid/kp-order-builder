@@ -77,6 +77,18 @@
 
   .addline{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 30%);padding-top:14px;margin-top:6px}
 
+  /* quick add by code */
+  .quickadd{background:linear-gradient(135deg,#16273c,#171b21);border:1px solid var(--accent);border-radius:12px;padding:12px 14px;margin-bottom:18px}
+  .quickadd h2{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--accent);display:flex;align-items:center;gap:6px}
+  .quickadd input.field{font-size:16px;font-weight:600}
+  .qa-card{display:flex;gap:10px;align-items:center;margin-top:10px;background:var(--panel);border:1px solid var(--accent2);border-radius:10px;padding:8px}
+  .qa-card img{width:54px;height:54px;object-fit:cover;border-radius:6px;background:#0c0f13;flex:none}
+  .qa-meta{flex:1;min-width:0}
+  .qa-meta b{display:block;font-size:16px}
+  .qa-meta small{display:block;color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .qa-card input.q{width:84px;padding:9px;border-radius:7px;background:var(--panel2);border:1px solid var(--line);color:var(--txt);font-size:16px;font-weight:700}
+  .qa-new{margin-top:8px;color:var(--muted);font-size:12px;line-height:1.4}
+
   /* board cards */
   .board h2{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
   .board h2 .count{background:var(--accent);color:#fff;border-radius:20px;padding:1px 8px;font-size:12px}
@@ -144,6 +156,12 @@
 <div class="wrap">
   <!-- COMPOSER -->
   <div class="composer">
+    <div class="quickadd">
+      <h2>⚡ Quick add by product code</h2>
+      <input id="qCode" class="field" placeholder="Type a saved code — e.g. KP019 — auto-fills everything" autocomplete="off"/>
+      <div id="qInfo"></div>
+    </div>
+
     <div class="step" id="s-supplier">
       <h2><span class="num">1</span> Supplier <span class="pick" data-pick="supplier"></span></h2>
       <div class="tiles" id="tiles-supplier"></div>
@@ -232,7 +250,7 @@ function setCloud(state,txt){
 }
 
 /* ---------- catalog state ---------- */
-var cat={ suppliers:{}, panelTypes:{}, colorBooks:{}, colors:{}, accessories:{}, webCatalog:{} };
+var cat={ suppliers:{}, panelTypes:{}, colorBooks:{}, colors:{}, accessories:{}, products:{}, webCatalog:{} };
 function watch(node,key){
   if(!db) return;
   db.ref(OB+'/'+node).on('value',function(s){ cat[key]=s.val()||{}; renderTiles(); renderAcc(); },function(err){ setCloud('err','db read blocked'); });
@@ -247,6 +265,7 @@ if(db){
   watch('colorBooks','colorBooks');
   watch('colors','colors');
   watch('accessories','accessories');
+  db.ref(OB+'/products').on('value',function(s){ cat.products=s.val()||{}; },function(){});
   db.ref('pub/webCatalog').on('value',function(s){ cat.webCatalog=s.val()||{}; },function(){});
   seedDefaults();
 }else{ setCloud('err','no firebase'); }
@@ -537,11 +556,72 @@ el('btnAddLine').onclick=function(){
   if(!ln.code){ alert('Enter a product code / name.'); return; }
   if(editingIndex>=0){ order.lines[editingIndex]=ln; editingIndex=-1; }
   else order.lines.push(ln);
+  upsertProduct(ln); // remember this product so its code auto-fills next time
   // keep supplier/panel/book selected, clear color/qty/code/accs for speed
   sel.color=null; el('qty').value=''; el('prodCode').value=''; accState={};
   renderTiles(); renderAcc(); renderCards(); saveLocal();
   document.querySelector('.board').scrollIntoView({behavior:'smooth',block:'start'});
 };
+
+/* ---------- product catalog (code -> full spec) + quick add ---------- */
+function pkey(c){ return (c||'').trim().toUpperCase().replace(/[.#$/\[\]]/g,'_'); }
+function upsertProduct(line){
+  if(!db || !line || !line.code) return;
+  var k=pkey(line.code); if(!k) return;
+  var pq=parseFloat(line.qty)||0;
+  db.ref(OB+'/products/'+k).set({
+    code:line.code, supplier:line.supplier||'', material:line.material||'', size:line.size||'',
+    panelName:line.panelName||'', book:line.book||'', page:line.page||'', number:line.number||'',
+    colorImg:line.colorImg||'', bookImg:line.bookImg||'', prodImg:line.prodImg||'',
+    accs:(line.accs||[]).map(function(a){ var aq=parseFloat(a.qty)||0; return { atype:a.atype||'', code:a.code||'', pct: pq?Math.round(aq/pq*100):0, unit:a.unit||'', img:a.img||'' }; }),
+    updatedAt:Date.now()
+  }).catch(function(){});
+}
+function lineFromProduct(p,qty){
+  var q=parseFloat(qty)||0;
+  return {
+    code:p.code, supplier:p.supplier||'', supplierId:null,
+    material:p.material||'', size:p.size||'', panelName:p.panelName||'', panelImg:'',
+    book:p.book||'', bookImg:p.bookImg||'', page:p.page||'', number:p.number||'', colorImg:p.colorImg||'',
+    qty:String(qty),
+    prodImg: p.prodImg || (p.code?(IMG_BASE+p.code.trim().toUpperCase()+'.jpg'):''),
+    accs:(p.accs||[]).map(function(a){ return { atype:a.atype, code:a.code, qty:String(a.pct?Math.round(q*a.pct/100):(a.qty||'')), img:a.img||'', unit:a.unit||'' }; })
+  };
+}
+function renderQuickInfo(){
+  var raw=el('qCode').value.trim(), info=el('qInfo');
+  if(!raw){ info.innerHTML=''; return; }
+  var p=cat.products[pkey(raw)];
+  if(p){
+    info.innerHTML='<div class="qa-card">'+
+      (p.colorImg?'<img src="'+esc(p.colorImg)+'">':(p.prodImg?'<img src="'+esc(p.prodImg)+'" onerror="this.style.opacity=.12">':'<img>'))+
+      '<div class="qa-meta"><b>'+esc(p.code)+'</b>'+
+        '<small>'+esc(p.material)+' · '+esc(p.size)+(p.supplier?(' · '+esc(p.supplier)):'')+'</small>'+
+        '<small>'+esc(p.book)+(p.page?(' · '+esc(p.page)):'')+(p.number?(' · '+esc(p.number)):'')+
+          ((p.accs&&p.accs.length)?(' · '+p.accs.map(function(a){return esc(a.code);}).join(',')):'')+'</small>'+
+      '</div>'+
+      '<input class="q" id="qQty" type="number" placeholder="qty">'+
+      '<button class="btn primary" id="qAdd">Add ↵</button>'+
+    '</div>';
+    var qq=el('qQty'); qq.focus();
+    qq.onkeydown=function(e){ if(e.key==='Enter') quickAdd(p); };
+    el('qAdd').onclick=function(){ quickAdd(p); };
+  } else {
+    info.innerHTML='<div class="qa-new"><b style="color:var(--txt)">New code.</b> Build it with the selectors below (supplier · panel/size · book · colour + photo), set quantity, then <b>Add to order</b> — it’s saved so this code auto-fills next time.</div>';
+    el('prodCode').value=raw; // pre-fill the composer code field
+  }
+}
+function quickAdd(p){
+  var qq=el('qQty'); var qty=qq?qq.value.trim():'';
+  if(!qty){ alert('Enter a quantity.'); if(qq) qq.focus(); return; }
+  order.lines.push(lineFromProduct(p,qty));
+  renderCards(); saveLocal();
+  el('qCode').value=''; el('qInfo').innerHTML=''; el('qCode').focus();
+}
+el('qCode').addEventListener('input',renderQuickInfo);
+el('qCode').addEventListener('keydown',function(e){
+  if(e.key==='Enter'){ var p=cat.products[pkey(this.value.trim())]; if(p){ e.preventDefault(); var qq=el('qQty'); if(qq) qq.focus(); } }
+});
 
 function editLine(i){
   var ln=order.lines[i]; if(!ln) return;
@@ -951,6 +1031,7 @@ function commitImport(lines,suppliers,append){
       };
     });
   })).then(function(newLines){
+    newLines.forEach(upsertProduct); // build the reusable product catalog (code -> full spec)
     if(append){
       order.lines=order.lines.concat(newLines);
       renderCards(); saveLocal(); closeModal();
