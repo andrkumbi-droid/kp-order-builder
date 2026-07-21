@@ -51,6 +51,8 @@
   .tile .sub{font-size:11px;color:var(--muted);margin-top:2px}
   .tile .del{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.55);border:none;color:#fff;width:18px;height:18px;border-radius:50%;line-height:1;font-size:12px;display:none}
   .tile:hover .del{display:block}
+  .tile .edit{position:absolute;top:2px;left:2px;background:rgba(59,130,246,.85);border:none;color:#fff;width:18px;height:18px;border-radius:50%;line-height:1;font-size:11px;display:flex;align-items:center;justify-content:center;padding:0}
+  @media(hover:hover){.tile .del{display:none}}
   .tile.add{display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);border-style:dashed;min-height:108px}
   .tile.add .plus{font-size:26px;line-height:1}
   .swatchgrid .tile{width:92px}
@@ -366,6 +368,7 @@ function tilesInto(containerId, obj, kind, mapFn){
     var id=e[0], m=mapFn(e[1]);
     var selCls=(sel[kind]===id)?' sel':'';
     html+='<div class="tile'+selCls+'" data-kind="'+kind+'" data-id="'+id+'">'+
+      '<button class="edit" data-edit="'+kind+'" data-id="'+id+'" title="edit">✎</button>'+
       '<button class="del" data-del="'+kind+'" data-id="'+id+'">×</button>'+
       (m.img?'<img class="thumb" src="'+esc(m.img)+'">':'<div class="thumb"></div>')+
       '<div class="cap">'+esc(m.cap||'')+'</div>'+
@@ -397,6 +400,7 @@ function renderAcc(){
       '<div class="an"><b>'+esc(a.atype||a.code||'')+'</b><small>'+esc(a.pct?('~'+a.pct+'% of qty'):(a.unit||''))+'</small></div>'+
       '<input class="code" data-accfield="code" data-id="'+id+'" placeholder="code" value="'+esc(st.code||a.code||'')+'">'+
       '<input class="q" type="number" data-accfield="qty" data-id="'+id+'" placeholder="qty" value="'+esc(st.qty||'')+'">'+
+      '<button class="tg" data-edit="accessory" data-id="'+id+'" title="edit type" style="color:var(--accent)">✎</button>'+
     '</div>';
   });
   c.innerHTML=html;
@@ -421,6 +425,9 @@ document.addEventListener('click',function(ev){
     if(confirm('Delete this item from catalog?')){ dbRemove(node,id); if(sel[kind]===id) sel[kind]=null; }
     return;
   }
+  // edit catalog item
+  var edit=t.closest&&t.closest('[data-edit]');
+  if(edit){ ev.stopPropagation(); openAdd(edit.getAttribute('data-edit'), edit.getAttribute('data-id')); return; }
   // add new catalog item
   var add=t.closest&&t.closest('[data-add]');
   if(add){ openAdd(add.getAttribute('data-add')); return; }
@@ -453,46 +460,61 @@ document.addEventListener('input',function(ev){
 
 /* ---------- add modal ---------- */
 var pendingImg=null;
-function openAdd(kind){
-  if(kind==='color' && !sel.book){ alert('Please pick a color book first.'); return; }
-  pendingImg=null;
+var NODEMAP={supplier:'suppliers',panel:'panelTypes',book:'colorBooks',color:'colors',accessory:'accessories'};
+function openAdd(kind, editId){
+  if(kind==='color' && !editId && !sel.book){ alert('Please pick a color book first.'); return; }
+  var node=NODEMAP[kind];
+  var ex = editId ? (cat[node] && cat[node][editId]) : null;
+  pendingImg = ex && ex.img ? ex.img : null;
+  var T = editId ? 'Edit' : 'New';
   var box=el('modalBox'), h='';
   if(kind==='supplier'){
-    h='<h3>New supplier</h3>'+
+    h='<h3>'+T+' supplier</h3>'+
       '<label>Name</label><input class="field" id="f_name">'+
       '<label>Address</label><input class="field" id="f_addr">'+
       '<div class="row"><div><label>FOB / port</label><input class="field" id="f_fob"></div><div><label>HS code</label><input class="field" id="f_hs"></div></div>';
   }else if(kind==='panel'){
-    h='<h3>New panel type</h3>'+
-      '<div class="row"><div><label>Name</label><input class="field" id="f_name" placeholder="PVC Panel"></div>'+
-      '<div><label>Material</label><select class="field" id="f_mat"><option>PVC</option><option>WPC</option></select></div></div>'+
+    h='<h3>'+T+' panel type</h3>'+
+      '<div class="row"><div><label>Name</label><input class="field" id="f_name" placeholder="Panel"></div>'+
+      '<div><label>Material</label><select class="field" id="f_mat"><option value="">—</option><option>PVC</option><option>WPC</option></select></div></div>'+
       '<label>Size</label><input class="field" id="f_size" placeholder="400*7*2900mm">';
   }else if(kind==='book'){
-    h='<h3>New color book</h3>'+
+    h='<h3>'+T+' color book</h3>'+
       '<label>Book name</label><input class="field" id="f_name">'+
       '<label>Brand / edition</label><input class="field" id="f_brand">';
   }else if(kind==='color'){
-    var bk=cat.colorBooks[sel.book];
-    h='<h3>New color · '+esc(bk?bk.name:'')+'</h3>'+
+    var bk=cat.colorBooks[(ex&&ex.bookId)||sel.book];
+    h='<h3>'+T+' color · '+esc(bk?bk.name:'')+'</h3>'+
       '<div class="row"><div><label>Page (P.xxx)</label><input class="field" id="f_page" placeholder="P.076"></div>'+
       '<div><label>Color number</label><input class="field" id="f_num" placeholder="60134-9"></div></div>';
   }else if(kind==='accessory'){
-    h='<h3>New accessory type</h3>'+
+    h='<h3>'+T+' accessory type</h3>'+
       '<div class="row"><div><label>Type</label><input class="field" id="f_at" placeholder="L-Profile"></div>'+
       '<div><label>Code prefix</label><input class="field" id="f_code" placeholder="L"></div></div>'+
       '<div class="row"><div><label>Suggested %</label><input class="field" id="f_pct" type="number" placeholder="30"></div>'+
       '<div><label>Unit (opt)</label><input class="field" id="f_unit" placeholder="ctn"></div></div>';
   }
-  h+='<label>Photo</label><div class="uparea" id="uparea">Click to upload / take photo'+
+  h+='<label>Photo</label><div class="uparea" id="uparea">Tap to upload / take photo'+
      '<input type="file" accept="image/*" id="fileIn" style="display:none">'+
      '<div id="prev"></div></div>'+
-     '<div class="foot"><button class="btn ghost" id="mCancel">Cancel</button><button class="btn primary" id="mSave">Save</button></div>';
+     '<div class="foot">'+(editId?'<button class="btn" id="mDel" style="margin-right:auto;color:var(--danger)">Delete</button>':'')+'<button class="btn ghost" id="mCancel">Cancel</button><button class="btn primary" id="mSave">Save</button></div>';
   box.innerHTML=h;
+  // prefill on edit
+  function set(id,v){ var e=el(id); if(e) e.value=(v==null?'':v); }
+  if(ex){
+    if(kind==='supplier'){ set('f_name',ex.name); set('f_addr',ex.addr); set('f_fob',ex.fob); set('f_hs',ex.hs); }
+    else if(kind==='panel'){ set('f_name',ex.name); set('f_mat',ex.material); set('f_size',ex.size); }
+    else if(kind==='book'){ set('f_name',ex.name); set('f_brand',ex.brand); }
+    else if(kind==='color'){ set('f_page',ex.page); set('f_num',ex.number); }
+    else if(kind==='accessory'){ set('f_at',ex.atype); set('f_code',ex.code); set('f_pct',ex.pct); set('f_unit',ex.unit); }
+  }
+  if(pendingImg){ var pv=el('prev'); if(pv) pv.innerHTML='<img src="'+esc(pendingImg)+'">'; }
   el('modal').classList.remove('hide');
   el('uparea').onclick=function(){ el('fileIn').click(); };
   el('fileIn').onchange=function(e){ handleFile(e.target.files[0]); };
   el('mCancel').onclick=closeModal;
-  el('mSave').onclick=function(){ saveAdd(kind); };
+  if(editId && el('mDel')) el('mDel').onclick=function(){ if(confirm('Delete this from catalog?')){ dbRemove(node,editId); if(sel[kind]===editId) sel[kind]=null; closeModal(); } };
+  el('mSave').onclick=function(){ saveAdd(kind, editId); };
 }
 function closeModal(){ el('modal').classList.add('hide'); }
 el('modal').addEventListener('click',function(e){ if(e.target.id==='modal') closeModal(); });
@@ -515,19 +537,24 @@ function handleFile(file){
   r.readAsDataURL(file);
 }
 
-function saveAdd(kind){
-  var obj={}, node='';
+function saveAdd(kind, editId){
+  var node=NODEMAP[kind], obj={};
+  var ex = editId ? (cat[node] && cat[node][editId]) : null;
   function val(id){ var e=el(id); return e?e.value.trim():''; }
-  if(kind==='supplier'){ node='suppliers'; obj={name:val('f_name'),addr:val('f_addr'),fob:val('f_fob'),hs:val('f_hs')}; if(!obj.name)return alert('Name required'); }
-  else if(kind==='panel'){ node='panelTypes'; obj={name:val('f_name')||'Panel',material:val('f_mat'),size:val('f_size')}; }
-  else if(kind==='book'){ node='colorBooks'; obj={name:val('f_name'),brand:val('f_brand')}; if(!obj.name)return alert('Name required'); }
-  else if(kind==='color'){ node='colors'; obj={bookId:sel.book,page:val('f_page'),number:val('f_num')}; if(!obj.page&&!obj.number)return alert('Page or number required'); }
-  else if(kind==='accessory'){ node='accessories'; obj={atype:val('f_at'),code:val('f_code'),pct:parseFloat(val('f_pct'))||0,unit:val('f_unit')}; if(!obj.atype)return alert('Type required'); }
+  if(kind==='supplier'){ obj={name:val('f_name'),addr:val('f_addr'),fob:val('f_fob'),hs:val('f_hs')}; if(!obj.name)return alert('Name required'); }
+  else if(kind==='panel'){ obj={name:val('f_name')||'Panel',material:val('f_mat'),size:val('f_size')}; }
+  else if(kind==='book'){ obj={name:val('f_name'),brand:val('f_brand')}; if(!obj.name)return alert('Name required'); }
+  else if(kind==='color'){ obj={bookId:(ex&&ex.bookId)||sel.book,page:val('f_page'),number:val('f_num')}; if(!obj.page&&!obj.number)return alert('Page or number required'); }
+  else if(kind==='accessory'){ obj={atype:val('f_at'),code:val('f_code'),pct:parseFloat(val('f_pct'))||0,unit:val('f_unit')}; if(!obj.atype)return alert('Type required'); }
   if(pendingImg) obj.img=pendingImg;
-  dbPush(node,obj).then(function(newId){
-    if(kind!=='accessory'){ sel[kind==='book'?'book':kind]=newId; if(kind==='book') sel.color=null; }
-    closeModal();
-  });
+  if(editId){
+    db.ref(OB+'/'+node+'/'+editId).update(obj).then(closeModal).catch(function(e){ alert('Save failed: '+e.message); });
+  } else {
+    dbPush(node,obj).then(function(newId){
+      if(kind!=='accessory'){ sel[kind==='book'?'book':kind]=newId; if(kind==='book') sel.color=null; }
+      closeModal();
+    });
+  }
 }
 el('btnAddAcc').onclick=function(){ openAdd('accessory'); };
 
