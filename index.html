@@ -101,6 +101,9 @@
   .ptable input.price{width:72px;padding:5px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);color:var(--txt)}
   .ptable .pbaht{color:var(--accent2);font-weight:700}
   .ptable .pcode{font-weight:700}
+  .ptable tr.poff{opacity:.42}
+  .ptable tr.poff .pcode{text-decoration:line-through}
+  .ptable input.pavail{width:18px;height:18px;accent-color:var(--accent2);cursor:pointer}
 
   /* board cards */
   .board h2{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
@@ -642,7 +645,7 @@ function renderQuickInfo(){
   if(p){
     info.innerHTML='<div class="qa-card">'+
       (p.colorImg?'<img src="'+esc(p.colorImg)+'">':(p.prodImg?'<img src="'+esc(p.prodImg)+'" onerror="this.style.opacity=.12">':'<img>'))+
-      '<div class="qa-meta"><b>'+esc(p.code)+'</b>'+
+      '<div class="qa-meta"><b>'+esc(p.code)+(p.off?' <span style="color:var(--danger);font-size:11px;font-weight:700">· DISCONTINUED</span>':'')+'</b>'+
         '<small>'+esc(p.material)+' · '+esc(p.size)+(p.supplier?(' · '+esc(p.supplier)):'')+'</small>'+
         '<small>'+esc(p.book)+(p.page?(' · '+esc(p.page)):'')+(p.number?(' · '+esc(p.number)):'')+
           ((p.accs&&p.accs.length)?(' · '+p.accs.map(function(a){return esc(a.code);}).join(',')):'')+'</small>'+
@@ -1190,12 +1193,14 @@ function productList(){
   return entries(cat.products).map(function(e){ return e[1]; }).filter(function(p){ return p&&p.code; })
     .sort(function(a,b){ var d=natCode(a.code)-natCode(b.code); return d||(a.code<b.code?-1:1); });
 }
+var prodShowAll=false;
+function prodVisibleList(){ var l=productList(); return prodShowAll?l:l.filter(function(p){ return !p.off; }); }
 function openProducts(){
   var box=el('prodBox');
   var rows=productList().map(function(p){
     var key=pkey(p.code), usd=(p.priceUSD===''||p.priceUSD==null)?'':p.priceUSD, img=p.prodImg||p.colorImg||'';
     var s=(p.code+' '+(p.supplier||'')+' '+(p.number||'')+' '+(p.size||'')+' '+(p.page||'')).toLowerCase();
-    return '<tr data-s="'+esc(s)+'">'+
+    return '<tr data-s="'+esc(s)+'" data-off="'+(p.off?'1':'0')+'"'+(p.off?' class="poff"':'')+'>'+
       '<td>'+(img?'<img src="'+esc(img)+'" onerror="this.style.opacity=.1">':'')+'</td>'+
       '<td class="pcode">'+esc(p.code)+'</td>'+
       '<td>'+esc(p.supplier||'')+'</td>'+
@@ -1204,24 +1209,42 @@ function openProducts(){
       '<td>'+esc(p.page||'')+(p.number?(' '+esc(p.number)):'')+'</td>'+
       '<td>$<input class="price" data-pkey="'+key+'" type="number" step="0.001" value="'+esc(usd)+'"></td>'+
       '<td class="pbaht">'+(usd!==''?('฿'+bahtOf(usd)):'')+'</td>'+
+      '<td style="text-align:center"><input type="checkbox" class="pavail" data-pkey="'+key+'" '+(p.off?'':'checked')+' title="tick = we still sell it"></td>'+
     '</tr>';
   }).join('');
   box.innerHTML='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">'+
-    '<h3 style="margin:0">Products ('+productList().length+')</h3>'+
-    '<input class="field" id="pSearch" placeholder="search code / supplier / colour…" style="flex:1;min-width:150px">'+
+    '<h3 style="margin:0">Products</h3>'+
+    '<span id="pCount" style="font-size:12px;color:var(--muted)"></span>'+
+    '<button class="btn ghost" id="pToggleAll" style="font-size:12px"></button>'+
+    '<input class="field" id="pSearch" placeholder="search…" style="flex:1;min-width:130px">'+
     '<label style="font-size:12px;color:var(--muted);white-space:nowrap">USD→THB <input class="price" id="thbRateInp" type="number" step="0.1" value="'+esc(thbRate)+'"></label>'+
     '<button class="btn green" id="pExport">Export Excel</button>'+
     '<button class="btn ghost" id="pClose">Close</button></div>'+
-    '<div style="overflow:auto;max-height:72vh"><table class="ptable"><thead><tr><th>Img</th><th>Code</th><th>Supplier</th><th>Size</th><th>Book</th><th>Page / Colour&nbsp;no.</th><th>USD</th><th>THB</th></tr></thead>'+
-    '<tbody>'+(rows||'<tr><td colspan="8" style="padding:20px;color:var(--muted)">No products yet.</td></tr>')+'</tbody></table></div>';
+    '<div style="overflow:auto;max-height:72vh"><table class="ptable"><thead><tr><th>Img</th><th>Code</th><th>Supplier</th><th>Size</th><th>Book</th><th>Page / Colour&nbsp;no.</th><th>USD</th><th>THB</th><th>Sell?</th></tr></thead>'+
+    '<tbody>'+(rows||'<tr><td colspan="9" style="padding:20px;color:var(--muted)">No products yet.</td></tr>')+'</tbody></table></div>';
   el('prodOverlay').classList.remove('hide');
   el('pClose').onclick=function(){ el('prodOverlay').classList.add('hide'); };
-  el('pSearch').oninput=function(){ var t=this.value.toLowerCase(); Array.prototype.forEach.call(box.querySelectorAll('tbody tr[data-s]'),function(tr){ tr.style.display=tr.getAttribute('data-s').indexOf(t)>=0?'':'none'; }); };
+  el('pSearch').oninput=function(){ applyProdFilter(box); };
+  el('pToggleAll').onclick=function(){ prodShowAll=!prodShowAll; applyProdFilter(box); };
   el('thbRateInp').onchange=function(){ thbRate=parseFloat(this.value)||thbRate; if(db) db.ref(OB+'/settings/thbRate').set(thbRate); recalcBaht(box); };
   el('pExport').onclick=exportProducts;
   Array.prototype.forEach.call(box.querySelectorAll('input.price[data-pkey]'),function(inp){
     inp.onchange=function(){ var k=inp.getAttribute('data-pkey'), v=inp.value.trim(); if(db) db.ref(OB+'/products/'+k+'/priceUSD').set(v===''?null:(parseFloat(v)||0)); var cell=inp.parentNode.nextElementSibling; if(cell) cell.textContent=v===''?'':('฿'+bahtOf(parseFloat(v)||0)); };
   });
+  Array.prototype.forEach.call(box.querySelectorAll('input.pavail[data-pkey]'),function(chk){
+    chk.onchange=function(){ var k=chk.getAttribute('data-pkey'), off=!chk.checked; if(db) db.ref(OB+'/products/'+k+'/off').set(off?true:null); var tr=chk.closest('tr'); if(tr){ tr.setAttribute('data-off',off?'1':'0'); tr.classList.toggle('poff',off); } applyProdFilter(box); };
+  });
+  applyProdFilter(box);
+}
+function applyProdFilter(box){
+  var t=(el('pSearch')?el('pSearch').value:'').toLowerCase(), shown=0, off=0, total=0;
+  Array.prototype.forEach.call(box.querySelectorAll('tbody tr[data-s]'),function(tr){
+    total++; var isOff=tr.getAttribute('data-off')==='1'; if(isOff) off++;
+    var vis=(tr.getAttribute('data-s').indexOf(t)>=0) && (prodShowAll || !isOff);
+    tr.style.display=vis?'':'none'; if(vis) shown++;
+  });
+  var c=el('pCount'); if(c) c.textContent=prodShowAll?('all '+total+' · '+off+' discontinued'):(shown+' available');
+  var b=el('pToggleAll'); if(b) b.textContent=prodShowAll?'▸ Only available':'▸ Show all ('+total+')';
 }
 function recalcBaht(box){
   Array.prototype.forEach.call(box.querySelectorAll('input.price[data-pkey]'),function(inp){
@@ -1232,7 +1255,7 @@ el('prodOverlay').addEventListener('click',function(e){ if(e.target.id==='prodOv
 el('btnProducts').onclick=openProducts;
 
 function exportProducts(){
-  var list=productList(); if(!list.length) return alert('No products.');
+  var list=prodVisibleList(); if(!list.length) return alert('No products.');
   el('pExport').textContent='building…';
   var COLS=['PICTURE','CODE','SUPPLIER','SIZE','BOOK','PAGE','COLOUR NO.','USD','THB ('+thbRate+')'];
   var meta=list.map(function(p){ var usd=(p.priceUSD===''||p.priceUSD==null)?'':p.priceUSD;
