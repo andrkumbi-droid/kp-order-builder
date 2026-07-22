@@ -91,6 +91,17 @@
   .qa-card input.q{width:84px;padding:9px;border-radius:7px;background:var(--panel2);border:1px solid var(--line);color:var(--txt);font-size:16px;font-weight:700}
   .qa-new{margin-top:8px;color:var(--muted);font-size:12px;line-height:1.4}
 
+  /* products overview */
+  .modal.wide{width:min(1060px,100%)}
+  .ptable{width:100%;border-collapse:collapse;font-size:12px}
+  .ptable th{position:sticky;top:0;background:var(--panel);z-index:1;text-align:left;color:var(--muted);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+  .ptable td{padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+  .ptable img{width:44px;height:44px;object-fit:cover;border-radius:5px;background:#0c0f13;display:block}
+  .ptable tbody tr:hover{background:var(--panel2)}
+  .ptable input.price{width:72px;padding:5px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);color:var(--txt)}
+  .ptable .pbaht{color:var(--accent2);font-weight:700}
+  .ptable .pcode{font-weight:700}
+
   /* board cards */
   .board h2{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
   .board h2 .count{background:var(--accent);color:#fff;border-radius:20px;padding:1px 8px;font-size:12px}
@@ -150,6 +161,7 @@
   <input type="file" id="importFile" accept=".xlsx" multiple style="display:none">
   <button class="btn" id="btnLoad">Open</button>
   <button class="btn" id="btnSave">Save</button>
+  <button class="btn" id="btnProducts">📋 Products</button>
   <button class="btn" id="btnPhotos">📷 Catalog</button>
   <button class="btn primary" id="btnPdf">Export PDF</button>
   <button class="btn green" id="btnXls">Export Excel</button>
@@ -221,6 +233,9 @@
 <div class="ov hide" id="modal">
   <div class="modal" id="modalBox"></div>
 </div>
+<div class="ov hide" id="prodOverlay">
+  <div class="modal wide" id="prodBox"></div>
+</div>
 
 <script src="https://accounts.google.com/gsi/client" async></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -254,6 +269,7 @@ function setCloud(state,txt){
 
 /* ---------- catalog state ---------- */
 var cat={ suppliers:{}, panelTypes:{}, colorBooks:{}, colors:{}, accessories:{}, products:{}, webCatalog:{} };
+var thbRate=36.5; // USD -> THB, editable in Products view (stored in orderBuilder/settings/thbRate)
 function watch(node,key){
   if(!db) return;
   db.ref(OB+'/'+node).on('value',function(s){ cat[key]=s.val()||{}; renderTiles(); renderAcc(); },function(err){ setCloud('err','db read blocked'); });
@@ -269,6 +285,7 @@ if(db){
   watch('colors','colors');
   watch('accessories','accessories');
   db.ref(OB+'/products').on('value',function(s){ cat.products=s.val()||{}; },function(){});
+  db.ref(OB+'/settings/thbRate').on('value',function(s){ var v=s.val(); if(v) thbRate=parseFloat(v)||thbRate; },function(){});
   db.ref('pub/webCatalog').on('value',function(s){ cat.webCatalog=s.val()||{}; },function(){});
   seedDefaults();
 }else{ setCloud('err','no firebase'); }
@@ -603,6 +620,7 @@ function upsertProduct(line, fromPI){
   setIf('material',line.material); setIf('size',line.size); setIf('panelName',line.panelName);
   setIf('book',line.book); setIf('page',line.page); setIf('number',line.number);
   setIf('colorImg',line.colorImg); setIf('bookImg',line.bookImg); setIf('prodImg',line.prodImg);
+  setIf('priceUSD',line.priceUSD);
   if(line.accs && line.accs.length) o.accs=line.accs.map(function(a){ var aq=parseFloat(a.qty)||0; return { atype:a.atype||'', code:a.code||'', pct: pq?Math.round(aq/pq*100):0, unit:a.unit||'', img:a.img||'' }; });
   db.ref(OB+'/products/'+k).update(o).catch(function(){}); // merge, never wipe existing fields
 }
@@ -928,6 +946,7 @@ var reSize=/^\d+\s*[*x]\s*\d+\s*[*x]\s*\d+\s*mm/i,
 function looksCode(v){ return v && (reCode.test(v)||/^clip/i.test(v)) && !reSize.test(v); }
 function classify(code){ if(/^clip/i.test(code))return 'clip'; if(rePanel.test(code))return 'panel'; if(/^l/i.test(code))return 'L'; if(/^t/i.test(code))return 'T'; if(/^u/i.test(code))return 'U'; return 'panel'; }
 function inum(v){ if(v==null||v==='')return ''; var n=parseFloat(String(v).replace(/[^\d.\-]/g,'')); return isNaN(n)?'':Math.round(n); }
+function pnum(v){ if(v==null||v==='')return ''; var n=parseFloat(String(v).replace(/[^\d.\-]/g,'')); return isNaN(n)?'':Math.round(n*1000)/1000; }
 function parsePI(rows){
   var hi=-1;
   for(var r=0;r<rows.length;r++){ var c=rows[r]||{}, vals=Object.keys(c).map(function(k){return c[k].toLowerCase();}); if(vals.some(function(v){return /size/.test(v);})&&vals.some(function(v){return /qty|quantity/.test(v);})){ hi=r; break; } }
@@ -945,18 +964,19 @@ function parsePI(rows){
   var colorCol=colorTop&&colorTop[1]?colorTop[0]:null;
   var dieTop=cols.filter(function(c){return c!==codeCol;}).map(function(c){return [c,dataRows.filter(function(dr){return /^(by|y|yh|dh|d)\d+/i.test(dr.cells[c]||'');}).length];}).sort(function(a,b){return b[1]-a[1];})[0];
   var dieCol=dieTop&&dieTop[1]>=2?dieTop[0]:null;
+  var priceCol=find(/unit\s*price/i)[0]; // USD purchase price per pc
   var items=dataRows.map(function(dr){
     var row=dr.cells;
     var code=(row[codeCol]||'').replace(/\s*\(.+?\)\s*/,'').trim(); if(!looksCode(code)) return null;
     var colorRaw=colorCol?row[colorCol]:'';
     return { code:code, kind:classify(code), size:row[sizeCol]||'', qty:inum(row[qtyCol]), srcRow:dr.srcRow,
       number:reColorNum.test(colorRaw)?colorRaw:'', page:(colorRaw&&!reColorNum.test(colorRaw))?colorRaw:'',
-      die:dieCol?(row[dieCol]||''):'' };
+      price:priceCol?pnum(row[priceCol]):'', die:dieCol?(row[dieCol]||''):'' };
   }).filter(Boolean);
   var lines=[], last=null;
   items.forEach(function(it){
-    if(it.kind==='panel'){ last={code:it.code,size:it.size,qty:it.qty,number:it.number,page:it.page,die:it.die,accs:[],_srcRow:it.srcRow}; lines.push(last); }
-    else { var a={code:it.code,atype:it.kind==='clip'?'Clips':(it.kind+'-Profile'),qty:it.qty,unit:it.kind==='clip'?'ctn':''}; if(last) last.accs.push(a); else lines.push({code:it.code,size:it.size,qty:it.qty,number:it.number,page:it.page,accs:[],_srcRow:it.srcRow}); }
+    if(it.kind==='panel'){ last={code:it.code,size:it.size,qty:it.qty,number:it.number,page:it.page,die:it.die,priceUSD:it.price,accs:[],_srcRow:it.srcRow}; lines.push(last); }
+    else { var a={code:it.code,atype:it.kind==='clip'?'Clips':(it.kind+'-Profile'),qty:it.qty,unit:it.kind==='clip'?'ctn':'',priceUSD:it.price}; if(last) last.accs.push(a); else lines.push({code:it.code,size:it.size,qty:it.qty,number:it.number,page:it.page,priceUSD:it.price,accs:[],_srcRow:it.srcRow}); }
   });
   return { lines:lines };
 }
@@ -1054,7 +1074,7 @@ function commitImport(lines,suppliers,append){
         code:l.code, supplier:l._supplier||sup, supplierId:null,
         material:mat, size:l.size, panelName:l.die?('Die '+l.die):'', panelImg:'',
         book:'', bookImg:im[1]||'', page:l.page||'', number:l.number||'', colorImg:im[0]||'',
-        qty:String(l.qty||''),
+        qty:String(l.qty||''), priceUSD:(l.priceUSD===''||l.priceUSD==null)?'':l.priceUSD,
         prodImg: l.code ? (IMG_BASE+l.code.trim().toUpperCase()+'.jpg') : '',
         accs:(l.accs||[]).map(function(a){ return {atype:a.atype,code:a.code,qty:String(a.qty||''),img:'',unit:a.unit||''}; })
       };
@@ -1162,6 +1182,95 @@ function openPhotos(){
   Array.prototype.forEach.call(box.querySelectorAll('[data-applycg]'),function(btn){ btn.onclick=function(){ var ref=btn.getAttribute('data-applycg'); applyColorToGroup(ref,groups[ref].img); openPhotos(); }; });
 }
 el('btnPhotos').onclick=openPhotos;
+
+/* ---------- Products overview (code · img · size · book · colour · USD · THB) ---------- */
+function natCode(c){ var m=/(\d+)/.exec(c||''); return m?parseInt(m[1],10):0; }
+function bahtOf(usd){ return (usd===''||usd==null||isNaN(usd))?'':Math.round(usd*thbRate*100)/100; }
+function productList(){
+  return entries(cat.products).map(function(e){ return e[1]; }).filter(function(p){ return p&&p.code; })
+    .sort(function(a,b){ var d=natCode(a.code)-natCode(b.code); return d||(a.code<b.code?-1:1); });
+}
+function openProducts(){
+  var box=el('prodBox');
+  var rows=productList().map(function(p){
+    var key=pkey(p.code), usd=(p.priceUSD===''||p.priceUSD==null)?'':p.priceUSD, img=p.prodImg||p.colorImg||'';
+    var s=(p.code+' '+(p.supplier||'')+' '+(p.number||'')+' '+(p.size||'')+' '+(p.page||'')).toLowerCase();
+    return '<tr data-s="'+esc(s)+'">'+
+      '<td>'+(img?'<img src="'+esc(img)+'" onerror="this.style.opacity=.1">':'')+'</td>'+
+      '<td class="pcode">'+esc(p.code)+'</td>'+
+      '<td>'+esc(p.supplier||'')+'</td>'+
+      '<td>'+esc(p.size||'')+'</td>'+
+      '<td>'+esc(p.book||'')+'</td>'+
+      '<td>'+esc(p.page||'')+(p.number?(' '+esc(p.number)):'')+'</td>'+
+      '<td>$<input class="price" data-pkey="'+key+'" type="number" step="0.001" value="'+esc(usd)+'"></td>'+
+      '<td class="pbaht">'+(usd!==''?('฿'+bahtOf(usd)):'')+'</td>'+
+    '</tr>';
+  }).join('');
+  box.innerHTML='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">'+
+    '<h3 style="margin:0">Products ('+productList().length+')</h3>'+
+    '<input class="field" id="pSearch" placeholder="search code / supplier / colour…" style="flex:1;min-width:150px">'+
+    '<label style="font-size:12px;color:var(--muted);white-space:nowrap">USD→THB <input class="price" id="thbRateInp" type="number" step="0.1" value="'+esc(thbRate)+'"></label>'+
+    '<button class="btn green" id="pExport">Export Excel</button>'+
+    '<button class="btn ghost" id="pClose">Close</button></div>'+
+    '<div style="overflow:auto;max-height:72vh"><table class="ptable"><thead><tr><th>Img</th><th>Code</th><th>Supplier</th><th>Size</th><th>Book</th><th>Page / Colour&nbsp;no.</th><th>USD</th><th>THB</th></tr></thead>'+
+    '<tbody>'+(rows||'<tr><td colspan="8" style="padding:20px;color:var(--muted)">No products yet.</td></tr>')+'</tbody></table></div>';
+  el('prodOverlay').classList.remove('hide');
+  el('pClose').onclick=function(){ el('prodOverlay').classList.add('hide'); };
+  el('pSearch').oninput=function(){ var t=this.value.toLowerCase(); Array.prototype.forEach.call(box.querySelectorAll('tbody tr[data-s]'),function(tr){ tr.style.display=tr.getAttribute('data-s').indexOf(t)>=0?'':'none'; }); };
+  el('thbRateInp').onchange=function(){ thbRate=parseFloat(this.value)||thbRate; if(db) db.ref(OB+'/settings/thbRate').set(thbRate); recalcBaht(box); };
+  el('pExport').onclick=exportProducts;
+  Array.prototype.forEach.call(box.querySelectorAll('input.price[data-pkey]'),function(inp){
+    inp.onchange=function(){ var k=inp.getAttribute('data-pkey'), v=inp.value.trim(); if(db) db.ref(OB+'/products/'+k+'/priceUSD').set(v===''?null:(parseFloat(v)||0)); var cell=inp.parentNode.nextElementSibling; if(cell) cell.textContent=v===''?'':('฿'+bahtOf(parseFloat(v)||0)); };
+  });
+}
+function recalcBaht(box){
+  Array.prototype.forEach.call(box.querySelectorAll('input.price[data-pkey]'),function(inp){
+    var v=inp.value.trim(), cell=inp.parentNode.nextElementSibling; if(cell) cell.textContent=v===''?'':('฿'+bahtOf(parseFloat(v)||0));
+  });
+}
+el('prodOverlay').addEventListener('click',function(e){ if(e.target.id==='prodOverlay') el('prodOverlay').classList.add('hide'); });
+el('btnProducts').onclick=openProducts;
+
+function exportProducts(){
+  var list=productList(); if(!list.length) return alert('No products.');
+  el('pExport').textContent='building…';
+  var COLS=['PICTURE','CODE','SUPPLIER','SIZE','BOOK','PAGE','COLOUR NO.','USD','THB ('+thbRate+')'];
+  var meta=list.map(function(p){ var usd=(p.priceUSD===''||p.priceUSD==null)?'':p.priceUSD;
+    return {img:p.prodImg||p.colorImg||'', cells:['',p.code,p.supplier||'',p.size||'',p.book||'',p.page||'',p.number||'',usd,usd!==''?bahtOf(usd):'']}; });
+  Promise.all(meta.map(function(m){ return imgToU8(m.img); })).then(function(imgs){
+    var media=[],drawings=[],drawRels=[],picId=2;
+    imgs.forEach(function(u8,i){ if(!u8)return; var mi=media.length+1,rid='rId'+mi,file='image'+mi+'.jpeg';
+      media.push({name:'xl/media/'+file,data:u8});
+      drawRels.push('<Relationship Id="'+rid+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/'+file+'"/>');
+      var cx=88*EMU,cy=88*EMU,off=6000;
+      drawings.push('<xdr:oneCellAnchor><xdr:from><xdr:col>0</xdr:col><xdr:colOff>'+off+'</xdr:colOff><xdr:row>'+(i+1)+'</xdr:row><xdr:rowOff>'+off+'</xdr:rowOff></xdr:from><xdr:ext cx="'+cx+'" cy="'+cy+'"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="'+(picId++)+'" name="p'+mi+'"/><xdr:cNvPicPr/></xdr:nvPicPr><xdr:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="'+rid+'"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="'+cx+'" cy="'+cy+'"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>');
+    });
+    var hasImg=media.length>0;
+    function cellXml(ref,val,isNum){ if(val===''||val==null) return '<c r="'+ref+'"/>'; if(isNum&&/^-?\d+(\.\d+)?$/.test(String(val).trim())) return '<c r="'+ref+'"><v>'+val+'</v></c>'; return '<c r="'+ref+'" t="inlineStr"><is><t xml:space="preserve">'+xesc(val)+'</t></is></c>'; }
+    var COLL=['A','B','C','D','E','F','G','H','I'];
+    var sheetRows='<row r="1" ht="20" customHeight="1">'+COLS.map(function(h,i){return cellXml(COLL[i]+'1',h,false);}).join('')+'</row>';
+    meta.forEach(function(m,i){ var rr=i+2; sheetRows+='<row r="'+rr+'" ht="70" customHeight="1">'+m.cells.map(function(v,ci){return cellXml(COLL[ci]+rr,v,ci>=7);}).join('')+'</row>'; });
+    var colsXml='<cols><col min="1" max="1" width="13" customWidth="1"/><col min="2" max="2" width="12" customWidth="1"/><col min="3" max="3" width="12" customWidth="1"/><col min="4" max="4" width="16" customWidth="1"/><col min="5" max="5" width="16" customWidth="1"/><col min="6" max="6" width="16" customWidth="1"/><col min="7" max="7" width="14" customWidth="1"/><col min="8" max="9" width="12" customWidth="1"/></cols>';
+    var sheetXml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'+colsXml+'<sheetData>'+sheetRows+'</sheetData>'+(hasImg?'<drawing r:id="rId1"/>':'')+'</worksheet>';
+    var files=[
+      {name:'[Content_Types].xml',data:strU8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="jpeg" ContentType="image/jpeg"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'+(hasImg?'<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>':'')+'</Types>')},
+      {name:'_rels/.rels',data:strU8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>')},
+      {name:'xl/workbook.xml',data:strU8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Products" sheetId="1" r:id="rId1"/></sheets></workbook>')},
+      {name:'xl/_rels/workbook.xml.rels',data:strU8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>')},
+      {name:'xl/worksheets/sheet1.xml',data:strU8(sheetXml)}
+    ];
+    if(hasImg){
+      files.push({name:'xl/worksheets/_rels/sheet1.xml.rels',data:strU8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>')});
+      files.push({name:'xl/drawings/drawing1.xml',data:strU8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'+drawings.join('')+'</xdr:wsDr>')});
+      files.push({name:'xl/drawings/_rels/drawing1.xml.rels',data:strU8('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+drawRels.join('')+'</Relationships>')});
+      media.forEach(function(m){ files.push(m); });
+    }
+    var blob=makeZip(files), a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='KP_products_'+new Date().toISOString().slice(0,10)+'.xlsx'; a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); },4000);
+    el('pExport').textContent='Export Excel';
+  }).catch(function(e){ el('pExport').textContent='Export Excel'; alert('Export failed: '+e.message); });
+}
 
 /* ---------- Import directly from Google Drive ---------- */
 var GDRIVE_CLIENT_ID='794246593779-35lkq73cmbf9hihgj1tdofajsv73rkhi.apps.googleusercontent.com'; /* OAuth Web Client ID (GCP kp-wallpanel) */
