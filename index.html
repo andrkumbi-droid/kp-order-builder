@@ -320,7 +320,10 @@ if(db){
   watch('colorBooks','colorBooks');
   watch('colors','colors');
   watch('accessories','accessories');
-  db.ref(OB+'/products').on('value',function(s){ cat.products=s.val()||{}; },function(){});
+  db.ref(OB+'/products').on('value',function(s){ cat.products=s.val()||{};
+    var ov=el('prodOverlay'); // if Products is open but still empty (initial load), populate it once
+    if(ov && !ov.classList.contains('hide') && !ov.querySelector('.ptable tbody tr[data-pkey]')) openProducts();
+  },function(){});
   db.ref(OB+'/settings/thbRate').on('value',function(s){ var v=s.val(); if(v) thbRate=parseFloat(v)||thbRate; },function(){});
   db.ref('pub/webCatalog').on('value',function(s){ cat.webCatalog=s.val()||{}; },function(){});
   seedDefaults();
@@ -1266,7 +1269,7 @@ function openProducts(){
     '<input class="field" id="pSearch" placeholder="search…" style="flex:1;min-width:130px">'+
     '<label style="font-size:12px;color:var(--muted);white-space:nowrap">USD→THB <input class="price" id="thbRateInp" type="number" step="0.1" value="'+esc(thbRate)+'"></label>'+
     '<button class="btn green" id="pExport">Export list</button>'+
-    '<button class="btn" id="pClose">← Back</button></div>'+
+    '<button class="btn" id="pClose">🔧 Builder →</button></div>'+
     '<div class="prodmain">'+
       '<div class="prodleft">'+
         '<div class="prodtools">'+
@@ -1287,7 +1290,7 @@ function openProducts(){
       '</div>'+
     '</div>';
   el('prodOverlay').classList.remove('hide');
-  el('pClose').onclick=function(){ if(location.hash==='#products'){ history.back(); } else { el('prodOverlay').classList.add('hide'); } };
+  el('pClose').onclick=function(){ location.hash='build'; };
   el('pSearch').oninput=function(){ applyProdFilter(box); };
   el('pToggleAll').onclick=function(){ prodShowAll=!prodShowAll; applyProdFilter(box); };
   el('thbRateInp').onchange=function(){ thbRate=parseFloat(this.value)||thbRate; if(db) db.ref(OB+'/settings/thbRate').set(thbRate); recalcBaht(box); };
@@ -1296,7 +1299,7 @@ function openProducts(){
     order.lines=order.lines.filter(function(l){ return !(l&&l._fromPick); }); // drop tick-added lines
     prodSel=[]; refreshSelUI(box); renderOrdPanel(); renderCards(); saveLocal();
   };
-  el('pBuild').onclick=function(){ if(location.hash==='#products'){ history.back(); } else { el('prodOverlay').classList.add('hide'); } document.querySelector('.composer').scrollIntoView({behavior:'smooth'}); el('qCode').focus(); };
+  el('pBuild').onclick=function(){ location.hash='build'; setTimeout(function(){ el('qCode').focus(); },50); };
   el('pSendSupplier').onclick=exportExcel;
   Array.prototype.forEach.call(box.querySelectorAll('input.price[data-pkey]'),function(inp){
     inp.onchange=function(){ var k=inp.getAttribute('data-pkey'), v=inp.value.trim(); if(db) db.ref(OB+'/products/'+k+'/priceUSD').set(v===''?null:(parseFloat(v)||0)); var cell=inp.parentNode.nextElementSibling; if(cell) cell.textContent=v===''?'':('฿'+bahtOf(parseFloat(v)||0)); };
@@ -1386,12 +1389,14 @@ function recalcBaht(box){
     var v=inp.value.trim(), cell=inp.parentNode.nextElementSibling; if(cell) cell.textContent=v===''?'':('฿'+bahtOf(parseFloat(v)||0));
   });
 }
-el('btnProducts').onclick=function(){ if(location.hash==='#products') openProducts(); else location.hash='products'; };
+/* Products is the home page; the composer/builder lives behind #build */
+function showComposerPage(){ if(el('prodOverlay')) el('prodOverlay').classList.add('hide'); document.querySelector('.composer').scrollIntoView({behavior:'smooth'}); }
+el('btnProducts').onclick=function(){ if(location.hash==='#build') location.hash=''; else openProducts(); }; // back to home
 window.addEventListener('hashchange',function(){
-  if(location.hash==='#products') openProducts();
-  else if(el('prodOverlay') && !el('prodOverlay').classList.contains('hide')) el('prodOverlay').classList.add('hide');
+  if(location.hash==='#build') showComposerPage();
+  else openProducts(); // '' (home) and #products both show Products
 });
-if(location.hash==='#products') setTimeout(openProducts,300);
+if(location.hash!=='#build') setTimeout(openProducts,300); // default landing = Products
 
 function exportProducts(){
   var list=prodVisibleList(); if(!list.length) return alert('No products.');
