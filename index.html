@@ -1224,6 +1224,8 @@ function prodVisibleList(){ var l=productList(); return prodShowAll?l:l.filter(f
 function selPos(k){ return prodSel.indexOf(k); }
 function openProducts(){
   var box=el('prodBox');
+  // keep the ticks in sync with the order (survives reloads: tick-added lines carry _fromPick)
+  prodSel=order.lines.filter(function(l){ return l&&l._fromPick; }).map(function(l){ return l._fromPick; });
   var rows=productList().map(function(p){
     var key=pkey(p.code), usd=(p.priceUSD===''||p.priceUSD==null)?'':p.priceUSD, img=p.prodImg||p.colorImg||'';
     var s=(p.code+' '+(p.supplier||'')+' '+(p.number||'')+' '+(p.size||'')+' '+(p.page||'')).toLowerCase();
@@ -1254,7 +1256,7 @@ function openProducts(){
     '<div class="prodmain">'+
       '<div class="prodleft">'+
         '<div class="prodtools">'+
-          '<button class="btn primary" id="pAddSel">＋ Add to new order</button>'+
+          '<span style="font-size:12px;color:var(--muted)">Tick a product → it drops into the New order on the right. Untick to remove it.</span>'+
           '<button class="btn ghost" id="pClearSel">Clear selection</button>'+
           '<span id="pSelInfo" style="font-size:12px;color:var(--muted)"></span>'+
         '</div>'+
@@ -1276,8 +1278,10 @@ function openProducts(){
   el('pToggleAll').onclick=function(){ prodShowAll=!prodShowAll; applyProdFilter(box); };
   el('thbRateInp').onchange=function(){ thbRate=parseFloat(this.value)||thbRate; if(db) db.ref(OB+'/settings/thbRate').set(thbRate); recalcBaht(box); };
   el('pExport').onclick=exportProducts;
-  el('pAddSel').onclick=addSelectedToOrder;
-  el('pClearSel').onclick=function(){ prodSel=[]; refreshSelUI(box); };
+  el('pClearSel').onclick=function(){
+    order.lines=order.lines.filter(function(l){ return !(l&&l._fromPick); }); // drop tick-added lines
+    prodSel=[]; refreshSelUI(box); renderOrdPanel(); renderCards(); saveLocal();
+  };
   el('pBuild').onclick=function(){ if(location.hash==='#products'){ history.back(); } else { el('prodOverlay').classList.add('hide'); } document.querySelector('.composer').scrollIntoView({behavior:'smooth'}); el('qCode').focus(); };
   el('pSendSupplier').onclick=exportExcel;
   Array.prototype.forEach.call(box.querySelectorAll('input.price[data-pkey]'),function(inp){
@@ -1287,11 +1291,25 @@ function openProducts(){
     chk.onchange=function(){ var k=chk.getAttribute('data-pkey'), off=!chk.checked; if(db) db.ref(OB+'/products/'+k+'/off').set(off?true:null); var tr=chk.closest('tr'); if(tr){ tr.setAttribute('data-off',off?'1':'0'); tr.classList.toggle('poff',off); } applyProdFilter(box); };
   });
   Array.prototype.forEach.call(box.querySelectorAll('input.psel[data-pkey]'),function(chk){
-    chk.onchange=function(){ var k=chk.getAttribute('data-pkey'); var i=selPos(k); if(chk.checked){ if(i<0) prodSel.push(k); } else if(i>=0){ prodSel.splice(i,1); } refreshSelUI(box); };
+    chk.onchange=function(){ if(chk.checked) tickPick(chk.getAttribute('data-pkey')); else untickPick(chk.getAttribute('data-pkey')); };
   });
   refreshSelUI(box);
   renderOrdPanel();
   applyProdFilter(box);
+}
+/* tick → add the product to the order right away */
+function tickPick(k){
+  if(selPos(k)>=0) return;
+  var p=cat.products[k]; if(!p) return;
+  var ln=lineFromProduct(p,''); ln._fromPick=k;
+  prodSel.push(k); order.lines.push(ln);
+  refreshSelUI(el('prodBox')); renderOrdPanel(); renderCards(); saveLocal();
+}
+/* untick → remove the line this tick added */
+function untickPick(k){
+  var i=selPos(k); if(i>=0) prodSel.splice(i,1);
+  for(var j=order.lines.length-1;j>=0;j--){ if(order.lines[j]&&order.lines[j]._fromPick===k){ order.lines.splice(j,1); break; } }
+  refreshSelUI(el('prodBox')); renderOrdPanel(); renderCards(); saveLocal();
 }
 /* refresh the picked-row highlight + sequence numbers + selection counter */
 function refreshSelUI(box){
@@ -1303,19 +1321,11 @@ function refreshSelUI(box){
   });
   var info=el('pSelInfo'); if(info) info.textContent=prodSel.length?(prodSel.length+' selected'):'';
 }
-/* push the ticked products (in click order) onto the current order */
-function addSelectedToOrder(){
-  if(!prodSel.length){ alert('Tick some products first (checkbox column).'); return; }
-  var added=0;
-  prodSel.forEach(function(k){ var p=cat.products[k]; if(p){ order.lines.push(lineFromProduct(p,'')); added++; } });
-  prodSel=[]; refreshSelUI(el('prodBox'));
-  renderOrdPanel(); renderCards(); saveLocal();
-}
 /* the side "New order" panel = a live view of order.lines */
 function renderOrdPanel(){
   var list=el('ordPanelList'), cnt=el('ordPanelCount'); if(!list) return;
   if(cnt) cnt.textContent=order.lines.length;
-  if(!order.lines.length){ list.innerHTML='<div class="oempty">No items yet.<br>Tick products on the left and press <b>Add to new order</b>, or <b>Build new order</b> for a custom line.</div>'; return; }
+  if(!order.lines.length){ list.innerHTML='<div class="oempty">No items yet.<br>Tick a product on the left to drop it here, or <b>Build new order</b> for a custom line.</div>'; return; }
   list.innerHTML=order.lines.map(function(ln,i){
     var img=ln.prodImg||ln.colorImg||ln.bookImg||'';
     return '<div class="oline">'+
@@ -1330,7 +1340,9 @@ function renderOrdPanel(){
     inp.onchange=function(){ var i=parseInt(inp.getAttribute('data-i'),10); if(order.lines[i]){ order.lines[i].qty=inp.value.trim(); saveLocal(); renderCards(); } };
   });
   Array.prototype.forEach.call(list.querySelectorAll('button.orm'),function(b){
-    b.onclick=function(){ var i=parseInt(b.getAttribute('data-i'),10); order.lines.splice(i,1); renderOrdPanel(); renderCards(); saveLocal(); };
+    b.onclick=function(){ var i=parseInt(b.getAttribute('data-i'),10); var ln=order.lines[i]; order.lines.splice(i,1);
+      if(ln&&ln._fromPick){ var pi=selPos(ln._fromPick); if(pi>=0) prodSel.splice(pi,1); var pb=el('prodBox'); if(pb) refreshSelUI(pb); } // keep the table tick in sync
+      renderOrdPanel(); renderCards(); saveLocal(); };
   });
 }
 function applyProdFilter(box){
