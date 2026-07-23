@@ -113,7 +113,12 @@
   .ptable td.pedit:empty::before{content:'—';color:var(--line)}
   .ptable .pedit:hover{background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line)}
   .ptable .pedit:focus{background:var(--panel2);box-shadow:inset 0 0 0 2px var(--accent);outline:none;color:var(--txt)}
-  .ptable img.cthumb{width:40px;height:40px;object-fit:cover;border-radius:5px;background:#0c0f13;vertical-align:middle;display:inline-block}
+  .ptable img.cthumb{width:40px;height:40px;object-fit:cover;border-radius:5px;background:#0c0f13;vertical-align:middle;display:inline-block;cursor:zoom-in}
+  .imgzoom{position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:100;display:flex;align-items:center;justify-content:center;padding:24px}
+  .imgzoom.hide{display:none}
+  .imgzoom .iz-inner{display:flex;flex-direction:column;align-items:center;gap:14px;max-width:94vw;max-height:94vh}
+  .imgzoom #izImg{max-width:94vw;max-height:78vh;object-fit:contain;border-radius:10px;background:#0c0f13;box-shadow:0 12px 46px rgba(0,0,0,.55)}
+  .imgzoom .iz-bar{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
   .ptable .upthumb{cursor:pointer;display:inline-block;vertical-align:middle;line-height:0}
   .ptable .upthumb .upadd{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border:1px dashed var(--line);border-radius:5px;color:var(--muted);font-size:18px;background:var(--panel2);line-height:1}
   .ptable .upthumb:hover .upadd{border-color:var(--accent);color:var(--accent)}
@@ -1250,8 +1255,11 @@ function selPos(k){ return prodSel.indexOf(k); }
 /* an inline-editable table cell (click to edit → saves to Firebase on blur) */
 function ecell(key,field,val){ return '<td class="pedit" contenteditable="true" spellcheck="false" data-pkey="'+key+'" data-field="'+field+'" title="click to edit">'+esc(val||'')+'</td>'; }
 function ithumb(src){ return src?'<img class="cthumb" src="'+esc(src)+'" loading="lazy" onerror="this.style.display=\'none\'">':''; }
-/* a click-to-upload photo thumbnail (empty shows ＋) → saves to products/<key>/<field> */
-function upThumb(key,field,src){ return '<label class="upthumb" title="click to upload / replace photo">'+(src?'<img class="cthumb" src="'+esc(src)+'" loading="lazy" onerror="this.style.opacity=.12">':'<span class="upadd">＋</span>')+'<input type="file" accept="image/*" class="pupload" data-pkey="'+key+'" data-field="'+field+'" style="display:none"></label>'; }
+/* photo thumbnail: filled → click enlarges (lightbox); empty → ＋ uploads directly. Saves to products/<key>/<field> */
+function fileInputHtml(k,field){ return '<input type="file" accept="image/*" class="pupload" data-pkey="'+k+'" data-field="'+field+'" style="display:none">'; }
+function thumbImgHtml(k,field,src){ return '<img class="cthumb" data-pkey="'+k+'" data-field="'+field+'" src="'+esc(src)+'" loading="lazy" onerror="this.style.opacity=.12" title="click to enlarge">'+fileInputHtml(k,field); }
+function emptyThumbHtml(k,field){ return '<label class="upthumb" title="click to add a photo"><span class="upadd">＋</span>'+fileInputHtml(k,field)+'</label>'; }
+function upThumb(key,field,src){ return src? thumbImgHtml(key,field,src) : emptyThumbHtml(key,field); }
 /* Book cell: uploadable book/cover image + editable book name */
 function bookCell(key,img,name){ return '<td class="pbookcell">'+upThumb(key,'bookImg',img)+'<span class="pedit" contenteditable="true" spellcheck="false" data-pkey="'+key+'" data-field="book" title="click to edit">'+esc(name||'')+'</span></td>'; }
 function openProducts(){
@@ -1336,22 +1344,10 @@ function openProducts(){
         tr.setAttribute('data-s', s.toLowerCase()); }
     });
   });
-  Array.prototype.forEach.call(box.querySelectorAll('input.pupload[data-pkey]'),function(inp){
-    inp.onchange=function(){
-      var f=inp.files&&inp.files[0]; if(!f) return;
-      var k=inp.getAttribute('data-pkey'), field=inp.getAttribute('data-field'), lbl=inp.closest('label');
-      lbl.classList.add('uploading');
-      photoFromFile(f,function(dataUrl){
-        lbl.classList.remove('uploading');
-        if(!dataUrl) return;
-        if(db) db.ref(OB+'/products/'+k+'/'+field).set(dataUrl);
-        var im=lbl.querySelector('img.cthumb');
-        if(im){ im.src=dataUrl; im.style.opacity=''; }
-        else { var add=lbl.querySelector('.upadd'); if(add) add.remove(); var ni=new Image(); ni.className='cthumb'; ni.src=dataUrl; lbl.insertBefore(ni,inp); }
-      });
-      inp.value=''; // allow re-uploading the same file
-    };
-  });
+  if(!box._imgWired){ box._imgWired=true; // delegated (survives re-renders): click a photo → enlarge; pick a file → upload
+    box.addEventListener('click',function(e){ var im=e.target.closest&&e.target.closest('img.cthumb'); if(im){ e.preventDefault(); openLightbox(im); } });
+    box.addEventListener('change',function(e){ var t=e.target; if(t&&t.classList&&t.classList.contains('pupload')) handleUpload(t); });
+  }
   Array.prototype.forEach.call(box.querySelectorAll('input.psel[data-pkey]'),function(chk){
     chk.onchange=function(){ if(chk.checked) tickPick(chk.getAttribute('data-pkey')); else untickPick(chk.getAttribute('data-pkey')); };
   });
@@ -1359,6 +1355,46 @@ function openProducts(){
   renderOrdPanel();
   applyProdFilter(box);
 }
+/* upload a chosen file → downscale → save to products/<key>/<field>, update the cell in place */
+function handleUpload(inp){
+  var f=inp.files&&inp.files[0]; if(!f) return;
+  var k=inp.getAttribute('data-pkey'), field=inp.getAttribute('data-field'), td=inp.closest('td');
+  photoFromFile(f,function(dataUrl){
+    if(!dataUrl) return;
+    if(db) db.ref(OB+'/products/'+k+'/'+field).set(dataUrl);
+    var im=td&&td.querySelector('img.cthumb[data-field="'+field+'"]');
+    if(im){ im.src=dataUrl; im.style.opacity=''; }
+    else { var lbl=td&&td.querySelector('label.upthumb'); if(lbl) lbl.outerHTML=thumbImgHtml(k,field,dataUrl); }
+  });
+  inp.value=''; // allow re-uploading the same file
+}
+/* click a photo → show it enlarged, with Replace / Remove */
+function openLightbox(imgEl){
+  var box=el('prodBox');
+  var src=imgEl.getAttribute('src'), k=imgEl.getAttribute('data-pkey'), field=imgEl.getAttribute('data-field');
+  var ov=el('imgZoom');
+  if(!ov){ ov=document.createElement('div'); ov.id='imgZoom'; ov.className='imgzoom hide';
+    ov.innerHTML='<div class="iz-inner"><img id="izImg" alt=""><div class="iz-bar">'+
+      '<button class="btn primary" id="izReplace">🔁 Replace photo</button>'+
+      '<button class="btn" id="izRemove" style="color:var(--danger)">🗑 Remove</button>'+
+      '<button class="btn" id="izClose">Close ✕</button></div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click',function(e){ if(e.target===ov) closeLightbox(); });
+    el('izClose').onclick=closeLightbox;
+    document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeLightbox(); });
+  }
+  el('izImg').src=src;
+  el('izReplace').onclick=function(){ var inp=box.querySelector('input.pupload[data-pkey="'+k+'"][data-field="'+field+'"]'); closeLightbox(); if(inp) inp.click(); };
+  el('izRemove').onclick=function(){
+    if(!confirm('Remove this photo?')) return;
+    if(db) db.ref(OB+'/products/'+k+'/'+field).set(null);
+    var im=box.querySelector('img.cthumb[data-pkey="'+k+'"][data-field="'+field+'"]');
+    if(im){ var td=im.closest('td'), inp=td&&td.querySelector('input.pupload[data-field="'+field+'"]'); if(inp) inp.remove(); im.outerHTML=emptyThumbHtml(k,field); }
+    closeLightbox();
+  };
+  ov.classList.remove('hide');
+}
+function closeLightbox(){ var ov=el('imgZoom'); if(ov) ov.classList.add('hide'); }
 /* tick → add the product to the order right away */
 function tickPick(k){
   if(selPos(k)>=0) return;
