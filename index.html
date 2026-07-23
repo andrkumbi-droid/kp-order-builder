@@ -1218,9 +1218,13 @@ el('btnPhotos').onclick=openPhotos;
 /* ---------- Products overview (code · img · size · book · colour · USD · THB) ---------- */
 function natCode(c){ var m=/(\d+)/.exec(c||''); return m?parseInt(m[1],10):0; }
 function bahtOf(usd){ return (usd===''||usd==null||isNaN(usd))?'':Math.round(usd*thbRate*100)/100; }
+function prodGroup(c){ c=(c||'').toUpperCase(); return /^K-?PVC/.test(c)?0:(/^KP/.test(c)?1:2); } // K-PVC first, then KP, then rest
 function productList(){
   return entries(cat.products).map(function(e){ return e[1]; }).filter(function(p){ return p&&p.code; })
-    .sort(function(a,b){ var d=natCode(a.code)-natCode(b.code); return d||(a.code<b.code?-1:1); });
+    .sort(function(a,b){
+      var g=prodGroup(a.code)-prodGroup(b.code); if(g) return g;
+      var d=natCode(a.code)-natCode(b.code); return d||(a.code<b.code?-1:1);
+    });
 }
 var prodShowAll=false;
 var prodSel=[]; // pkeys of ticked products, in click order (Reihenfolge)
