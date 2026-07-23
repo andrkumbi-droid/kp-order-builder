@@ -150,6 +150,18 @@
   .oline input.oqty{width:56px;padding:5px;border-radius:6px;background:var(--bg);border:1px solid var(--line);color:var(--txt);font-size:12px;text-align:right}
   .oline .orm{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px}
   .oline .orm:hover{color:var(--danger)}
+  .oitem{margin-bottom:8px}
+  .oitem .oline{margin-bottom:0}
+  .oaccs{margin:3px 0 0 10px;padding-left:8px;border-left:2px solid var(--line)}
+  .oacc{display:flex;gap:4px;align-items:center;margin-top:4px}
+  .oacc .oacode{width:66px;padding:4px 5px;border-radius:5px;background:var(--bg);border:1px solid var(--line);color:var(--txt);font-size:11px;font-weight:700}
+  .oacc .oaq{width:46px;padding:4px;border-radius:5px;background:var(--bg);border:1px solid var(--line);color:var(--txt);font-size:11px;text-align:right}
+  .oacc .oarm{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:0 2px}
+  .oacc .oarm:hover{color:var(--danger)}
+  .oaccadd{display:flex;gap:4px;align-items:center;margin-top:5px;flex-wrap:wrap}
+  .oaccadd>span{font-size:10px;color:var(--muted)}
+  .oaccadd .oaddbtn{background:var(--panel2);border:1px solid var(--line);color:var(--accent2);border-radius:12px;padding:2px 8px;font-size:11px;cursor:pointer}
+  .oaccadd .oaddbtn:hover{border-color:var(--accent2)}
   .ordpanel .ofoot{padding:10px 12px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
   .ordpanel .ofoot .btn{width:100%}
 
@@ -1309,6 +1321,7 @@ function openProducts(){
         '<h4>🧾 New order <span class="oc" id="ordPanelCount">0</span></h4>'+
         '<div class="olist" id="ordPanelList"></div>'+
         '<div class="ofoot">'+
+          '<button class="btn ghost" id="pAccOnly">＋ Accessory only (e.g. L009)</button>'+
           '<button class="btn" id="pBuild">🔧 Build new order</button>'+
           '<button class="btn green" id="pSendSupplier">📤 Export Excel · send supplier</button>'+
         '</div>'+
@@ -1325,6 +1338,7 @@ function openProducts(){
     prodSel=[]; refreshSelUI(box); renderOrdPanel(); renderCards(); saveLocal();
   };
   el('pBuild').onclick=function(){ location.hash='build'; setTimeout(function(){ el('qCode').focus(); },50); };
+  el('pAccOnly').onclick=addAccOnly;
   el('pSendSupplier').onclick=exportExcel;
   Array.prototype.forEach.call(box.querySelectorAll('input.price[data-pkey]'),function(inp){
     inp.onchange=function(){ var k=inp.getAttribute('data-pkey'), v=inp.value.trim(); if(db) db.ref(OB+'/products/'+k+'/priceUSD').set(v===''?null:(parseFloat(v)||0)); var cell=inp.parentNode.nextElementSibling; if(cell) cell.textContent=v===''?'':('฿'+bahtOf(parseFloat(v)||0)); };
@@ -1419,19 +1433,47 @@ function refreshSelUI(box){
   });
   var info=el('pSelInfo'); if(info) info.textContent=prodSel.length?(prodSel.length+' selected'):'';
 }
-/* the side "New order" panel = a live view of order.lines */
+/* accessory code from the panel code: K-PVC-10 → LP10, KP009 → L009 (letter + P for PVC + the panel's number) */
+function accCode(panelCode, letter){ var kpvc=/^K-?PVC/i.test(panelCode||''); var m=(panelCode||'').match(/(\d+)\s*$/); return letter+(kpvc?'P':'')+(m?m[1]:''); }
+function addAccToLine(i, letter, atype){
+  var ln=order.lines[i]; if(!ln) return; ln.accs=ln.accs||[];
+  var code=accCode(ln.code, letter);
+  // one T/U/L per line: skip if a same-letter accessory already exists (incl. imported "L-P-10" etc.)
+  if(ln.accs.some(function(a){ return (a.code||'').replace(/[^A-Za-z]/g,'').charAt(0).toUpperCase()===letter; })) return;
+  var pq=parseFloat(ln.qty)||0, pct={L:30,T:6,U:5}[letter]||0;
+  ln.accs.push({ atype:atype, code:code, qty: pq?String(Math.round(pq*pct/100)):'', unit:'', img:'' });
+  renderOrdPanel(); renderCards(); saveLocal();
+}
+function addAccOnly(){
+  var c=prompt('Accessory-only order — enter the code (e.g. L009 or LP10):'); if(c==null) return; c=c.trim(); if(!c) return;
+  order.lines.push({ code:c, supplier:'', size:'', book:'', page:'', number:'', qty:'', accs:[], prodImg:'', _accOnly:true });
+  renderOrdPanel(); renderCards(); saveLocal();
+}
+/* the side "New order" panel = a live view of order.lines (with per-line trims/corners) */
 function renderOrdPanel(){
   var list=el('ordPanelList'), cnt=el('ordPanelCount'); if(!list) return;
   if(cnt) cnt.textContent=order.lines.length;
   if(!order.lines.length){ list.innerHTML='<div class="oempty">No items yet.<br>Tick a product on the left to drop it here, or <b>Build new order</b> for a custom line.</div>'; return; }
   list.innerHTML=order.lines.map(function(ln,i){
     var img=ln.prodImg||ln.colorImg||ln.bookImg||'';
-    return '<div class="oline">'+
-      (img?'<img src="'+esc(img)+'" onerror="this.style.opacity=.12">':'<img>')+
-      '<div class="oinfo"><div class="ocode">'+esc(ln.code||'—')+'</div>'+
-        '<div class="osub">'+esc(ln.size||'')+(ln.book?(' · '+esc(ln.book)):'')+(ln.number?(' · '+esc(ln.number)):'')+'</div></div>'+
-      '<input class="oqty" type="number" min="0" step="1" placeholder="qty" value="'+esc(ln.qty||'')+'" data-i="'+i+'">'+
-      '<button class="orm" data-i="'+i+'" title="remove">🗑</button>'+
+    var accsHtml=(ln.accs||[]).map(function(a,ai){
+      return '<div class="oacc"><input class="oacode" value="'+esc(a.code||'')+'" data-i="'+i+'" data-a="'+ai+'" title="accessory code">'+
+        '<input class="oaq" type="number" min="0" step="1" placeholder="qty" value="'+esc(a.qty||'')+'" data-i="'+i+'" data-a="'+ai+'">'+
+        '<button class="oarm" data-i="'+i+'" data-a="'+ai+'" title="remove">🗑</button></div>';
+    }).join('');
+    return '<div class="oitem">'+
+      '<div class="oline">'+
+        (img?'<img src="'+esc(img)+'" onerror="this.style.opacity=.12">':'<img>')+
+        '<div class="oinfo"><div class="ocode">'+esc(ln.code||'—')+'</div>'+
+          '<div class="osub">'+esc(ln.size||'')+(ln.book?(' · '+esc(ln.book)):'')+(ln.number?(' · '+esc(ln.number)):'')+'</div></div>'+
+        '<input class="oqty" type="number" min="0" step="1" placeholder="qty" value="'+esc(ln.qty||'')+'" data-i="'+i+'">'+
+        '<button class="orm" data-i="'+i+'" title="remove">🗑</button>'+
+      '</div>'+
+      '<div class="oaccs">'+accsHtml+
+        '<div class="oaccadd"><span>+ trim:</span><button class="oaddbtn" data-i="'+i+'" data-l="T" data-t="T-Trim">T-Trim</button>'+
+        '<button class="oaddbtn" data-i="'+i+'" data-l="U" data-t="U-Trim">U-Trim</button>'+
+        '<button class="oaddbtn" data-i="'+i+'" data-l="L" data-t="L-Corner">L-Corner</button></div>'+
+      '</div>'+
     '</div>';
   }).join('');
   Array.prototype.forEach.call(list.querySelectorAll('input.oqty'),function(inp){
@@ -1441,6 +1483,18 @@ function renderOrdPanel(){
     b.onclick=function(){ var i=parseInt(b.getAttribute('data-i'),10); var ln=order.lines[i]; order.lines.splice(i,1);
       if(ln&&ln._fromPick){ var pi=selPos(ln._fromPick); if(pi>=0) prodSel.splice(pi,1); var pb=el('prodBox'); if(pb) refreshSelUI(pb); } // keep the table tick in sync
       renderOrdPanel(); renderCards(); saveLocal(); };
+  });
+  Array.prototype.forEach.call(list.querySelectorAll('button.oaddbtn'),function(b){
+    b.onclick=function(){ addAccToLine(parseInt(b.getAttribute('data-i'),10), b.getAttribute('data-l'), b.getAttribute('data-t')); };
+  });
+  Array.prototype.forEach.call(list.querySelectorAll('input.oacode'),function(inp){
+    inp.onchange=function(){ var i=+inp.getAttribute('data-i'), ai=+inp.getAttribute('data-a'); if(order.lines[i]&&order.lines[i].accs&&order.lines[i].accs[ai]){ order.lines[i].accs[ai].code=inp.value.trim(); saveLocal(); renderCards(); } };
+  });
+  Array.prototype.forEach.call(list.querySelectorAll('input.oaq'),function(inp){
+    inp.onchange=function(){ var i=+inp.getAttribute('data-i'), ai=+inp.getAttribute('data-a'); if(order.lines[i]&&order.lines[i].accs&&order.lines[i].accs[ai]){ order.lines[i].accs[ai].qty=inp.value.trim(); saveLocal(); renderCards(); } };
+  });
+  Array.prototype.forEach.call(list.querySelectorAll('button.oarm'),function(b){
+    b.onclick=function(){ var i=+b.getAttribute('data-i'), ai=+b.getAttribute('data-a'); if(order.lines[i]&&order.lines[i].accs){ order.lines[i].accs.splice(ai,1); renderOrdPanel(); renderCards(); saveLocal(); } };
   });
 }
 function applyProdFilter(box){
