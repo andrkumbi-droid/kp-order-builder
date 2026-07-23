@@ -109,10 +109,15 @@
   .ptable tr.poff .pcode{text-decoration:line-through}
   .ptable input.pavail{width:18px;height:18px;accent-color:var(--accent2);cursor:pointer}
   .ptable input.psel{width:18px;height:18px;accent-color:var(--accent);cursor:pointer}
-  .ptable td.pedit{cursor:text}
+  .ptable .pedit{cursor:text}
   .ptable td.pedit:empty::before{content:'—';color:var(--line)}
-  .ptable td.pedit:hover{background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line)}
-  .ptable td.pedit:focus{background:var(--panel2);box-shadow:inset 0 0 0 2px var(--accent);outline:none;color:var(--txt)}
+  .ptable .pedit:hover{background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line)}
+  .ptable .pedit:focus{background:var(--panel2);box-shadow:inset 0 0 0 2px var(--accent);outline:none;color:var(--txt)}
+  .ptable img.cthumb{width:40px;height:40px;object-fit:cover;border-radius:5px;background:#0c0f13;vertical-align:middle;display:inline-block}
+  .ptable td.pbookcell{white-space:nowrap}
+  .ptable td.pbookcell .cthumb{margin-right:6px}
+  .ptable td.pbookcell .pedit{display:inline-block;min-width:34px;vertical-align:middle}
+  .ptable td.pcolimg{text-align:center}
   .ptable tr.picked{background:rgba(59,130,246,.12)}
   .ptable td.selnum{color:var(--accent);font-weight:700;text-align:center;font-size:11px}
   /* Products as a full page (not a dialog) */
@@ -1239,10 +1244,14 @@ function prodVisibleList(){ var l=productList(); return prodShowAll?l:l.filter(f
 function selPos(k){ return prodSel.indexOf(k); }
 /* an inline-editable table cell (click to edit → saves to Firebase on blur) */
 function ecell(key,field,val){ return '<td class="pedit" contenteditable="true" spellcheck="false" data-pkey="'+key+'" data-field="'+field+'" title="click to edit">'+esc(val||'')+'</td>'; }
+function ithumb(src){ return src?'<img class="cthumb" src="'+esc(src)+'" loading="lazy" onerror="this.style.display=\'none\'">':''; }
+/* Book cell: colour-book cover / book image + editable book name */
+function bookCell(key,img,name){ return '<td class="pbookcell">'+ithumb(img)+'<span class="pedit" contenteditable="true" spellcheck="false" data-pkey="'+key+'" data-field="book" title="click to edit">'+esc(name||'')+'</span></td>'; }
 function openProducts(){
   var box=el('prodBox');
   // keep the ticks in sync with the order (survives reloads: tick-added lines carry _fromPick)
   prodSel=order.lines.filter(function(l){ return l&&l._fromPick; }).map(function(l){ return l._fromPick; });
+  var bookCover={}; entries(cat.colorBooks).forEach(function(e){ if(e[1]&&e[1].name) bookCover[e[1].name.toLowerCase()]=e[1].img; }); // book name → cover img
   var rows=productList().map(function(p){
     var key=pkey(p.code), usd=(p.priceUSD===''||p.priceUSD==null)?'':p.priceUSD, img=p.prodImg||p.colorImg||'';
     var s=(p.code+' '+(p.supplier||'')+' '+(p.number||'')+' '+(p.size||'')+' '+(p.page||'')).toLowerCase();
@@ -1254,9 +1263,10 @@ function openProducts(){
       '<td class="pcode">'+esc(p.code)+'</td>'+
       ecell(key,'supplier',p.supplier)+
       ecell(key,'size',p.size)+
-      ecell(key,'book',p.book)+
+      bookCell(key, (p.book&&bookCover[p.book.toLowerCase()])||p.bookImg||'', p.book)+
       ecell(key,'page',p.page)+
       ecell(key,'number',p.number)+
+      '<td class="pcolimg">'+ithumb(p.colorImg||'')+'</td>'+
       '<td>$<input class="price" data-pkey="'+key+'" type="number" step="0.001" value="'+esc(usd)+'"></td>'+
       '<td class="pbaht">'+(usd!==''?('฿'+bahtOf(usd)):'')+'</td>'+
       '<td style="text-align:center"><input type="checkbox" class="pavail" data-pkey="'+key+'" '+(p.off?'':'checked')+' title="tick = we still sell it"></td>'+
@@ -1277,8 +1287,8 @@ function openProducts(){
           '<button class="btn ghost" id="pClearSel">Clear selection</button>'+
           '<span id="pSelInfo" style="font-size:12px;color:var(--muted)"></span>'+
         '</div>'+
-        '<div style="overflow:auto;flex:1;min-height:0"><table class="ptable"><thead><tr><th>✓</th><th>#</th><th>Img</th><th>Code</th><th>Supplier</th><th>Size</th><th>Book</th><th>Page</th><th>Colour&nbsp;no.</th><th>USD</th><th>THB</th><th>Sell?</th></tr></thead>'+
-        '<tbody>'+(rows||'<tr><td colspan="12" style="padding:20px;color:var(--muted)">No products yet.</td></tr>')+'</tbody></table></div>'+
+        '<div style="overflow:auto;flex:1;min-height:0"><table class="ptable"><thead><tr><th>✓</th><th>#</th><th>Img</th><th>Code</th><th>Supplier</th><th>Size</th><th>Book</th><th>Page</th><th>Colour&nbsp;no.</th><th>Colour</th><th>USD</th><th>THB</th><th>Sell?</th></tr></thead>'+
+        '<tbody>'+(rows||'<tr><td colspan="13" style="padding:20px;color:var(--muted)">No products yet.</td></tr>')+'</tbody></table></div>'+
       '</div>'+
       '<div class="ordpanel">'+
         '<h4>🧾 New order <span class="oc" id="ordPanelCount">0</span></h4>'+
@@ -1307,7 +1317,7 @@ function openProducts(){
   Array.prototype.forEach.call(box.querySelectorAll('input.pavail[data-pkey]'),function(chk){
     chk.onchange=function(){ var k=chk.getAttribute('data-pkey'), off=!chk.checked; if(db) db.ref(OB+'/products/'+k+'/off').set(off?true:null); var tr=chk.closest('tr'); if(tr){ tr.setAttribute('data-off',off?'1':'0'); tr.classList.toggle('poff',off); } applyProdFilter(box); };
   });
-  Array.prototype.forEach.call(box.querySelectorAll('td.pedit[data-pkey]'),function(td){
+  Array.prototype.forEach.call(box.querySelectorAll('.pedit[data-pkey]'),function(td){
     td.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); td.blur(); } });
     td.addEventListener('blur',function(){
       var k=td.getAttribute('data-pkey'), f=td.getAttribute('data-field'), v=td.textContent.trim();
@@ -1315,7 +1325,7 @@ function openProducts(){
       if(db) db.ref(OB+'/products/'+k+'/'+f).set(v===''?null:v);
       var tr=td.closest('tr'); // keep search in sync with the edited values
       if(tr){ var s=tr.querySelector('.pcode').textContent+' ';
-        Array.prototype.forEach.call(tr.querySelectorAll('td.pedit'),function(c){ s+=c.textContent+' '; });
+        Array.prototype.forEach.call(tr.querySelectorAll('.pedit'),function(c){ s+=c.textContent+' '; });
         tr.setAttribute('data-s', s.toLowerCase()); }
     });
   });
