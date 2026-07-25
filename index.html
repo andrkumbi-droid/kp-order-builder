@@ -130,6 +130,17 @@
   .ptable td.pcolimg{text-align:center}
   .ptable tr.picked{background:rgba(59,130,246,.12)}
   .ptable td.selnum{color:var(--accent);font-weight:700;text-align:center;font-size:11px}
+  /* multi-supplier chips (active = who we buy from now) */
+  .ptable td.psupcell{white-space:normal;max-width:220px}
+  .ptable .supill{display:inline-flex;align-items:center;gap:4px;margin:2px 4px 2px 0;padding:2px 7px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);color:var(--muted);cursor:pointer;font-size:11px;line-height:1.5}
+  .ptable .supill:hover{border-color:var(--accent);color:var(--txt)}
+  .ptable .supill.on{background:rgba(34,197,94,.16);border-color:var(--accent2);color:var(--txt);font-weight:600}
+  .ptable .supill.on b{color:var(--accent2)}
+  .ptable .supill b{font-weight:600}
+  .ptable .supill .supx{font-style:normal;opacity:0;color:var(--danger);font-weight:700;margin-left:1px}
+  .ptable .supill:hover .supx{opacity:.85}
+  .ptable .supadd{background:transparent;border:1px dashed var(--line);color:var(--muted);border-radius:12px;width:22px;height:20px;line-height:1;padding:0;font-size:13px;vertical-align:middle}
+  .ptable .supadd:hover{border-color:var(--accent);color:var(--accent)}
   /* Products as a full page (not a dialog) */
   #prodOverlay{background:var(--bg);padding:0}
   #prodOverlay>.modal{width:100%;max-width:100%;height:100vh;max-height:100vh;border:none;border-radius:0;display:flex;flex-direction:column;padding:12px 16px}
@@ -1274,6 +1285,85 @@ function emptyThumbHtml(k,field){ return '<label class="upthumb" title="click to
 function upThumb(key,field,src){ return src? thumbImgHtml(key,field,src) : emptyThumbHtml(key,field); }
 /* Book cell: uploadable book/cover image + editable book name */
 function bookCell(key,img,name){ return '<td class="pbookcell">'+upThumb(key,'bookImg',img)+'<span class="pedit" contenteditable="true" spellcheck="false" data-pkey="'+key+'" data-field="book" title="click to edit">'+esc(name||'')+'</span></td>'; }
+/* ---- multi-supplier per product ------------------------------------------
+   Model: products/<key>/sups/{sid:{name,price}} + activeSup:sid.
+   supplier + priceUSD stay as the ACTIVE offer (denormalised) so exports,
+   quick-add and board cards keep reading them unchanged. Legacy products with
+   only supplier/priceUSD are shown as a single offer until a 2nd is added. */
+function supKey(name){ return ((name||'').trim().toLowerCase().replace(/[.#$/\[\]]/g,'_').replace(/\s+/g,'_'))||'_'; }
+function prodOffers(p){
+  if(p&&p.sups&&typeof p.sups==='object'){
+    return entries(p.sups).map(function(e){ return {id:e[0], name:(e[1]&&e[1].name)||e[0], price:(e[1]&&e[1].price!=null?e[1].price:'')}; });
+  }
+  if(p&&p.supplier) return [{id:supKey(p.supplier), name:p.supplier, price:(p.priceUSD!=null&&p.priceUSD!==''?p.priceUSD:'')}];
+  return [];
+}
+function activeSid(p){ var o=prodOffers(p); return (p&&p.activeSup)||(o[0]&&o[0].id)||''; }
+function supCell(key,p){
+  var offers=prodOffers(p), act=activeSid(p);
+  var pills=offers.map(function(o){
+    var on=o.id===act;
+    return '<span class="supill'+(on?' on':'')+'" data-pkey="'+key+'" data-sid="'+esc(o.id)+'" title="'+(on?'active — this supplier goes on the order':'click to make active')+'">'+
+      esc(o.name)+(o.price!==''?' <b>$'+esc(o.price)+'</b>':'')+
+      '<i class="supx" data-pkey="'+key+'" data-sid="'+esc(o.id)+'" title="remove supplier">×</i></span>';
+  }).join('');
+  return '<td class="psupcell">'+pills+'<button class="supadd" data-pkey="'+key+'" title="add another supplier">＋</button></td>';
+}
+/* make sure the legacy single offer is written into sups before we branch off it */
+function ensureSups(key){
+  var p=cat.products[key]||(cat.products[key]={});
+  if(p.sups) return p;
+  p.sups={};
+  prodOffers(p).forEach(function(o){ var rec={name:o.name}; if(o.price!=='') rec.price=o.price; p.sups[o.id]=rec;
+    if(db) db.ref(OB+'/products/'+key+'/sups/'+o.id).set(rec); });
+  return p;
+}
+/* set the active supplier + keep denormalised supplier/priceUSD in sync */
+function applyActive(key,sid,name,price){
+  var p=cat.products[key]||(cat.products[key]={});
+  p.activeSup=sid; p.supplier=name; p.priceUSD=(price===''?'':price);
+  if(db){ db.ref(OB+'/products/'+key+'/activeSup').set(sid);
+    db.ref(OB+'/products/'+key+'/supplier').set(name);
+    db.ref(OB+'/products/'+key+'/priceUSD').set(price===''?null:price); }
+  redrawSupRow(el('prodBox'),key);
+}
+function activatePill(key,sid){ var p=ensureSups(key), rec=p.sups[sid]; if(!rec) return; applyActive(key,sid,rec.name||sid,(rec.price!=null?rec.price:'')); }
+function addSupplier(key){
+  var name=prompt('Add supplier for this product — name:'); if(name==null) return; name=name.trim(); if(!name) return;
+  var pin=prompt('Price in USD from '+name+'?  (leave blank if unknown)',''); if(pin==null) return;
+  var price=pin.trim()===''?'':(parseFloat(pin.replace(',','.'))||0);
+  var p=ensureSups(key), sid=supKey(name), rec={name:name}; if(price!=='') rec.price=price;
+  p.sups[sid]=rec; if(db) db.ref(OB+'/products/'+key+'/sups/'+sid).set(rec);
+  applyActive(key,sid,name,price); // the newly added one becomes active
+}
+function removeSup(key,sid){
+  var p=cat.products[key]||{}, offers=prodOffers(p);
+  var name=((offers.filter(function(o){return o.id===sid;})[0])||{}).name||sid;
+  if(!confirm('Remove supplier "'+name+'" from this product?')) return;
+  if(offers.length<=1){ // last one → clear supplier entirely
+    delete cat.products[key].sups; delete cat.products[key].activeSup; delete cat.products[key].supplier; delete cat.products[key].priceUSD;
+    if(db){ db.ref(OB+'/products/'+key+'/sups').remove(); db.ref(OB+'/products/'+key+'/activeSup').remove();
+      db.ref(OB+'/products/'+key+'/supplier').remove(); db.ref(OB+'/products/'+key+'/priceUSD').remove(); }
+    redrawSupRow(el('prodBox'),key); return;
+  }
+  var wasActive=activeSid(p)===sid;
+  var pp=ensureSups(key); delete pp.sups[sid]; if(db) db.ref(OB+'/products/'+key+'/sups/'+sid).remove();
+  if(wasActive){ var n=prodOffers(pp)[0]; applyActive(key,n.id,n.name,n.price); }
+  else redrawSupRow(el('prodBox'),key);
+}
+/* re-render one row's supplier cell + USD input + THB + search index */
+function redrawSupRow(box,key){
+  if(!box) return; var tr=box.querySelector('tr[data-pkey="'+key+'"]'); if(!tr) return;
+  var p=cat.products[key]||{}, cell=tr.querySelector('td.psupcell');
+  if(cell){ var tmp=document.createElement('tr'); tmp.innerHTML=supCell(key,p); cell.parentNode.replaceChild(tmp.firstChild,cell); }
+  var usd=(p.priceUSD===''||p.priceUSD==null)?'':p.priceUSD;
+  var inp=tr.querySelector('input.price[data-pkey="'+key+'"]'); if(inp) inp.value=usd;
+  var baht=tr.querySelector('td.pbaht'); if(baht) baht.textContent=(usd!==''?('฿'+bahtOf(usd)):'');
+  var s=tr.querySelector('.pcode').textContent+' ';
+  Array.prototype.forEach.call(tr.querySelectorAll('.pedit'),function(c){ s+=c.textContent+' '; });
+  prodOffers(p).forEach(function(o){ s+=o.name+' '; });
+  tr.setAttribute('data-s', s.toLowerCase());
+}
 function openProducts(){
   var box=el('prodBox');
   // keep the ticks in sync with the order (survives reloads: tick-added lines carry _fromPick)
@@ -1281,14 +1371,14 @@ function openProducts(){
   var bookCover={}; entries(cat.colorBooks).forEach(function(e){ if(e[1]&&e[1].name) bookCover[e[1].name.toLowerCase()]=e[1].img; }); // book name → cover img
   var rows=productList().map(function(p){
     var key=pkey(p.code), usd=(p.priceUSD===''||p.priceUSD==null)?'':p.priceUSD, img=p.prodImg||p.colorImg||'';
-    var s=(p.code+' '+(p.supplier||'')+' '+(p.number||'')+' '+(p.size||'')+' '+(p.page||'')).toLowerCase();
+    var s=(p.code+' '+prodOffers(p).map(function(o){return o.name;}).join(' ')+' '+(p.number||'')+' '+(p.size||'')+' '+(p.page||'')).toLowerCase();
     var pos=selPos(key);
     return '<tr data-s="'+esc(s)+'" data-off="'+(p.off?'1':'0')+'" data-pkey="'+key+'" class="'+(p.off?'poff ':'')+(pos>=0?'picked':'')+'">'+
       '<td style="text-align:center"><input type="checkbox" class="psel" data-pkey="'+key+'"'+(pos>=0?' checked':'')+' title="tick to add to the new order"></td>'+
       '<td class="selnum">'+(pos>=0?(pos+1):'')+'</td>'+
       '<td>'+upThumb(key,'prodImg',img)+'</td>'+
       '<td class="pcode">'+esc(p.code)+'</td>'+
-      ecell(key,'supplier',p.supplier)+
+      supCell(key,p)+
       ecell(key,'size',p.size)+
       bookCell(key, (p.book&&bookCover[p.book.toLowerCase()])||p.bookImg||'', p.book)+
       ecell(key,'page',p.page)+
@@ -1310,7 +1400,7 @@ function openProducts(){
     '<div class="prodmain">'+
       '<div class="prodleft">'+
         '<div class="prodtools">'+
-          '<span style="font-size:12px;color:var(--muted)">Tick a product → it drops into the New order. · Click a Supplier / Size / Book / Page / Colour cell to edit it.</span>'+
+          '<span style="font-size:12px;color:var(--muted)">Tick a product → it drops into the New order. · Click a supplier chip = who we buy from now (green = active, ＋ adds another). · Click Size / Book / Page / Colour to edit.</span>'+
           '<button class="btn ghost" id="pClearSel">Clear selection</button>'+
           '<span id="pSelInfo" style="font-size:12px;color:var(--muted)"></span>'+
         '</div>'+
@@ -1341,7 +1431,13 @@ function openProducts(){
   el('pAccOnly').onclick=addAccOnly;
   el('pSendSupplier').onclick=exportExcel;
   Array.prototype.forEach.call(box.querySelectorAll('input.price[data-pkey]'),function(inp){
-    inp.onchange=function(){ var k=inp.getAttribute('data-pkey'), v=inp.value.trim(); if(db) db.ref(OB+'/products/'+k+'/priceUSD').set(v===''?null:(parseFloat(v)||0)); var cell=inp.parentNode.nextElementSibling; if(cell) cell.textContent=v===''?'':('฿'+bahtOf(parseFloat(v)||0)); };
+    inp.onchange=function(){ var k=inp.getAttribute('data-pkey'), v=inp.value.trim(), num=v===''?'':(parseFloat(v)||0);
+      var p=cat.products[k]||(cat.products[k]={}); p.priceUSD=num;
+      if(db) db.ref(OB+'/products/'+k+'/priceUSD').set(num===''?null:num);
+      var act=activeSid(p); if(act){ var pp=ensureSups(k); if(pp.sups&&pp.sups[act]){ if(num==='') delete pp.sups[act].price; else pp.sups[act].price=num;
+        if(db) db.ref(OB+'/products/'+k+'/sups/'+act+'/price').set(num===''?null:num); } }
+      var cell=inp.parentNode.nextElementSibling; if(cell) cell.textContent=num===''?'':('฿'+bahtOf(num));
+      redrawSupRow(el('prodBox'),k); };
   });
   Array.prototype.forEach.call(box.querySelectorAll('input.pavail[data-pkey]'),function(chk){
     chk.onchange=function(){ var k=chk.getAttribute('data-pkey'), off=!chk.checked; if(db) db.ref(OB+'/products/'+k+'/off').set(off?true:null); var tr=chk.closest('tr'); if(tr){ tr.setAttribute('data-off',off?'1':'0'); tr.classList.toggle('poff',off); } applyProdFilter(box); };
@@ -1355,12 +1451,20 @@ function openProducts(){
       var tr=td.closest('tr'); // keep search in sync with the edited values
       if(tr){ var s=tr.querySelector('.pcode').textContent+' ';
         Array.prototype.forEach.call(tr.querySelectorAll('.pedit'),function(c){ s+=c.textContent+' '; });
+        prodOffers(cat.products[k]||{}).forEach(function(o){ s+=o.name+' '; });
         tr.setAttribute('data-s', s.toLowerCase()); }
     });
   });
   if(!box._imgWired){ box._imgWired=true; // delegated (survives re-renders): click a photo → enlarge; pick a file → upload
     box.addEventListener('click',function(e){ var im=e.target.closest&&e.target.closest('img.cthumb'); if(im){ e.preventDefault(); openLightbox(im); } });
     box.addEventListener('change',function(e){ var t=e.target; if(t&&t.classList&&t.classList.contains('pupload')) handleUpload(t); });
+  }
+  if(!box._supWired){ box._supWired=true; // supplier chips: × remove · ＋ add · click chip = make active
+    box.addEventListener('click',function(e){
+      var x=e.target.closest&&e.target.closest('.supx'); if(x){ e.preventDefault(); e.stopPropagation(); removeSup(x.getAttribute('data-pkey'),x.getAttribute('data-sid')); return; }
+      var add=e.target.closest&&e.target.closest('.supadd'); if(add){ e.preventDefault(); addSupplier(add.getAttribute('data-pkey')); return; }
+      var pill=e.target.closest&&e.target.closest('.supill'); if(pill){ e.preventDefault(); activatePill(pill.getAttribute('data-pkey'),pill.getAttribute('data-sid')); return; }
+    });
   }
   Array.prototype.forEach.call(box.querySelectorAll('input.psel[data-pkey]'),function(chk){
     chk.onchange=function(){ if(chk.checked) tickPick(chk.getAttribute('data-pkey')); else untickPick(chk.getAttribute('data-pkey')); };
