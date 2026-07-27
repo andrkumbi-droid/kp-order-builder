@@ -313,6 +313,7 @@
 
 <script src="https://accounts.google.com/gsi/client" async></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <script>
 (function(){
@@ -348,7 +349,9 @@ function watch(node,key){
   if(!db) return;
   db.ref(OB+'/'+node).on('value',function(s){ cat[key]=s.val()||{}; renderTiles(); renderAcc(); },function(err){ setCloud('err','db read blocked'); });
 }
-if(db){
+// The DB rules require `auth != null` — sign in anonymously BEFORE any listener,
+// otherwise every read is rejected once and never retried.
+function obStart(){
   setCloud('','connecting…');
   db.ref('.info/connected').on('value',function(s){
     online=!!s.val(); setCloud(online?'ok':'err', online?'synced':'offline');
@@ -365,6 +368,14 @@ if(db){
   db.ref(OB+'/settings/thbRate').on('value',function(s){ var v=s.val(); if(v) thbRate=parseFloat(v)||thbRate; },function(){});
   db.ref('pub/webCatalog').on('value',function(s){ cat.webCatalog=s.val()||{}; },function(){});
   seedDefaults();
+}
+if(db){
+  firebase.auth().signInAnonymously()
+    .then(obStart)
+    .catch(function(e){
+      console.error('[FB] anonymous sign-in failed:', e && e.code, e && e.message);
+      obStart(); // rules may still be open — try anyway rather than showing nothing
+    });
 }else{ setCloud('err','no firebase'); }
 
 function dbPush(node,obj){
