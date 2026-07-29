@@ -104,7 +104,8 @@
   .ptable tbody tr:hover{background:var(--panel2)}
   .ptable input.price{width:72px;padding:5px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);color:var(--txt)}
   .ptable .pbaht{color:var(--accent2);font-weight:700}
-  .ptable .pcode{font-weight:700}
+  .ptable .pcode{font-weight:700;cursor:pointer}
+  .ptable .pcode:hover{color:var(--accent);text-decoration:underline dotted}
   .ptable tr.poff{opacity:.42}
   .ptable tr.poff .pcode{text-decoration:line-through}
   .ptable input.pavail{width:18px;height:18px;accent-color:var(--accent2);cursor:pointer}
@@ -1362,6 +1363,28 @@ function removeSup(key,sid){
   if(wasActive){ var n=prodOffers(pp)[0]; applyActive(key,n.id,n.name,n.price); }
   else redrawSupRow(el('prodBox'),key);
 }
+/* rename a product code. The code IS the key (products/<pkey(code)>), so this is a
+   move: copy the record to the new key, drop the old one, and pull the ticks +
+   the lines of the open order over to the new key. */
+function renameProduct(oldKey){
+  var p=cat.products[oldKey]; if(!p) return;
+  var old=(p.code||'').trim();
+  var inp=prompt('Change the product code (agree it with the supplier first).\n\nOld code: '+old+'\nNew code:', old);
+  if(inp==null) return;
+  var nc=inp.trim().toUpperCase(); if(!nc || nc===old.toUpperCase()) return;
+  var nk=pkey(nc);
+  if(nk!==oldKey && cat.products[nk]){ alert('Code "'+nc+'" already exists in the list — pick another one.'); return; }
+  if(!confirm('Rename  '+old+'  →  '+nc+' ?\n\nSupplier, price, size, book, colour and photos stay with the product.\nThe photo file on the website is named after the code — rename it there too.')) return;
+  var rec={}; Object.keys(p).forEach(function(f){ rec[f]=p[f]; }); rec.code=nc;
+  cat.products[nk]=rec; if(nk!==oldKey) delete cat.products[oldKey];
+  if(db){ db.ref(OB+'/products/'+nk).set(rec).then(function(){ if(nk!==oldKey) db.ref(OB+'/products/'+oldKey).remove(); }).catch(function(){}); }
+  prodSel=prodSel.map(function(k){ return k===oldKey?nk:k; });
+  order.lines.forEach(function(l){ // lines that came from this row keep pointing at it
+    if(l&&l._fromPick===oldKey){ l._fromPick=nk; l.code=nc;
+      if(l.prodImg && l.prodImg.indexOf(IMG_BASE)===0) l.prodImg=IMG_BASE+nc+'.jpg'; }
+  });
+  saveLocal(); renderCards(); openProducts();
+}
 /* re-render one row's supplier cell + USD input + THB + search index */
 function redrawSupRow(box,key){
   if(!box) return; var tr=box.querySelector('tr[data-pkey="'+key+'"]'); if(!tr) return;
@@ -1388,7 +1411,7 @@ function openProducts(){
       '<td style="text-align:center"><input type="checkbox" class="psel" data-pkey="'+key+'"'+(pos>=0?' checked':'')+' title="tick to add to the new order"></td>'+
       '<td class="selnum">'+(pos>=0?(pos+1):'')+'</td>'+
       '<td>'+upThumb(key,'prodImg',img)+'</td>'+
-      '<td class="pcode">'+esc(p.code)+'</td>'+
+      '<td class="pcode" title="click to change the product code">'+esc(p.code)+'</td>'+
       supCell(key,p)+
       ecell(key,'size',p.size)+
       bookCell(key, (p.book&&bookCover[p.book.toLowerCase()])||p.bookImg||'', p.book)+
@@ -1411,7 +1434,7 @@ function openProducts(){
     '<div class="prodmain">'+
       '<div class="prodleft">'+
         '<div class="prodtools">'+
-          '<span style="font-size:12px;color:var(--muted)">Tick a product → it drops into the New order. · Click a supplier chip = who we buy from now (green = active, ＋ adds another). · Click Size / Book / Page / Colour to edit.</span>'+
+          '<span style="font-size:12px;color:var(--muted)">Tick a product → it drops into the New order. · Click a supplier chip = who we buy from now (green = active, ＋ adds another). · Click Size / Book / Page / Colour to edit, click the Code to rename a product.</span>'+
           '<button class="btn ghost" id="pClearSel">Clear selection</button>'+
           '<span id="pSelInfo" style="font-size:12px;color:var(--muted)"></span>'+
         '</div>'+
@@ -1475,6 +1498,7 @@ function openProducts(){
       var x=e.target.closest&&e.target.closest('.supx'); if(x){ e.preventDefault(); e.stopPropagation(); removeSup(x.getAttribute('data-pkey'),x.getAttribute('data-sid')); return; }
       var add=e.target.closest&&e.target.closest('.supadd'); if(add){ e.preventDefault(); addSupplier(add.getAttribute('data-pkey')); return; }
       var pill=e.target.closest&&e.target.closest('.supill'); if(pill){ e.preventDefault(); activatePill(pill.getAttribute('data-pkey'),pill.getAttribute('data-sid')); return; }
+      var cd=e.target.closest&&e.target.closest('td.pcode'); if(cd){ var tr=cd.closest('tr'); if(tr) renameProduct(tr.getAttribute('data-pkey')); return; }
     });
   }
   Array.prototype.forEach.call(box.querySelectorAll('input.psel[data-pkey]'),function(chk){
