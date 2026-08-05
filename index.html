@@ -236,12 +236,22 @@
   .pscard .psaccs b{color:#111}
   .psempty{padding:40px;text-align:center;color:#777}
   .psfoot{margin-top:16px;border-top:1px solid #ccc;padding-top:8px;font-size:11px;color:#888;display:flex;justify-content:space-between}
+  .pshead .pshl{min-width:0}
+  .pshead .psctn{font-weight:800;color:#111}
+  .pshead .psdate{color:#888}
+  /* editable preview fields — click to correct anything before printing */
+  .pspage [contenteditable]{cursor:text;outline:none}
+  .pspage [contenteditable]:hover{background:#fff6d6;border-radius:3px}
+  .pspage [contenteditable]:focus{background:#fff6d6;box-shadow:inset 0 0 0 1px #e0b400;border-radius:3px}
+  .pspage [contenteditable]:empty:before{content:attr(data-ph);color:#c2c7cd;font-weight:400}
   @media print{
     body{background:#fff}
     body>*{display:none!important}
     #printSheet{display:block!important;position:static;background:#fff;overflow:visible}
     #printSheet .psbar{display:none!important}
     .pspage{max-width:none;margin:0;padding:0;box-shadow:none}
+    .pspage [contenteditable]{background:none!important;box-shadow:none!important}
+    .pspage [contenteditable]:empty:before{content:''!important}
     .psgrid{gap:8px}
     .pscard{border-color:#bbb}
     @page{margin:12mm}
@@ -339,7 +349,7 @@
 <div class="hide" id="printSheet">
   <div class="psbar noprint">
     <button class="btn primary" id="psPrint">🖨️ Print / Save PDF</button>
-    <span class="psbarnote">This is exactly what will print. Use your browser's “Save as PDF” to keep a file.</span>
+    <span class="psbarnote">Click any field (supplier, container no., code, colour, qty…) to correct it, then print. Use your browser's “Save as PDF” to keep a file.</span>
     <button class="btn ghost" id="psClose">✕ Close</button>
   </div>
   <div class="pspage" id="psPage"></div>
@@ -851,12 +861,25 @@ function lnImg(ln,field){
   return '';
 }
 function lnField(ln,field){ if(ln[field]) return ln[field]; var p=cat.products[pkey(ln.code||'')]; return (p&&p[field])||''; }
+/* most common supplier across the lines → used as the sheet heading */
+function psSupplier(panels){
+  var counts={}, best='', bestN=0;
+  panels.forEach(function(ln){ var s=lnField(ln,'supplier'); if(!s) return; counts[s]=(counts[s]||0)+1; if(counts[s]>bestN){ bestN=counts[s]; best=s; } });
+  return best;
+}
 function buildPrintSheet(){
   var lines=order.lines||[];
   var panels=lines.filter(function(l){ return !l._accOnly; });
   var totPcs=0; lines.forEach(function(l){ var q=parseInt(l.qty,10); if(!isNaN(q)) totPcs+=q; });
-  var head='<div class="pshead"><div><div class="pst">'+esc(order.name||'Order overview')+'</div>'+
-    '<div class="pssub">Production / packing overview — '+new Date().toLocaleDateString()+'</div></div>'+
+  var supName=(order.printSupplier!=null&&order.printSupplier!=='')?order.printSupplier:psSupplier(panels);
+  supName=String(supName||'').replace(/&#\d+;?/g,' ').replace(/[\r\n\t]+/g,' ').replace(/\s{2,}/g,' ').trim(); // drop newline/entity junk from PI cells
+  var ctn=order.containerNo||'';
+  // heading = supplier name + container no; both editable (fix by hand if the parse is off)
+  var head='<div class="pshead"><div class="pshl">'+
+    '<div class="pst" contenteditable="true" data-hk="supplier" data-ph="Supplier name">'+esc(supName||'')+'</div>'+
+    '<div class="pssub">Container&nbsp;No.&nbsp;<span class="psctn" contenteditable="true" data-hk="container" data-ph="…">'+esc(ctn)+'</span>'+
+      '<span class="psdate"> · '+new Date().toLocaleDateString()+'</span></div>'+
+    '</div>'+
     '<div class="psstat"><b>'+panels.length+'</b> models<br>'+totPcs.toLocaleString()+' pcs total</div></div>';
   if(!panels.length) return head+'<div class="psempty">No items yet. Use <b>Import PI</b> (or build an order), then print.</div>';
   var cards=panels.map(function(ln){
@@ -865,19 +888,19 @@ function buildPrintSheet(){
     var material=ln.material||lnField(ln,'material'), size=ln.size||lnField(ln,'size');
     var model=[material,size].filter(Boolean).join(' · ');
     var colTxt=book||''; var colSub=[page&&('Page '+page),num].filter(Boolean).join(' · ');
-    var accHtml=(ln.accs||[]).map(function(a){ return '<span><b>'+esc(a.code)+'</b> '+esc(a.qty)+(a.unit?(' '+esc(a.unit)):' pcs')+'</span>'; }).join('');
+    var accHtml=(ln.accs||[]).map(function(a){ return '<span contenteditable="true"><b>'+esc(a.code)+'</b> '+esc(a.qty)+(a.unit?(' '+esc(a.unit)):' pcs')+'</span>'; }).join('');
     return '<div class="pscard">'+
       '<img class="psphoto" src="'+esc(photo)+'" onerror="this.style.visibility=\'hidden\'">'+
       '<div class="psinfo">'+
-        '<div class="pscode">'+esc(ln.code||'')+'</div>'+
-        (model?'<div class="psmodel">'+esc(model)+'</div>':'')+
+        '<div class="pscode" contenteditable="true" data-ph="Code">'+esc(ln.code||'')+'</div>'+
+        '<div class="psmodel" contenteditable="true" data-ph="material · size">'+esc(model)+'</div>'+
         '<div class="pscolor">'+
           (sw?'<img src="'+esc(sw)+'" onerror="this.style.display=\'none\'">':'')+
           (bk?'<img src="'+esc(bk)+'" onerror="this.style.display=\'none\'">':'')+
-          '<span class="pscname">'+esc(colTxt||'—')+(colSub?'<small>'+esc(colSub)+'</small>':'')+'</span>'+
+          '<span class="pscname"><span contenteditable="true" data-ph="colour / book">'+esc(colTxt)+'</span><small contenteditable="true" data-ph="page · no.">'+esc(colSub)+'</small></span>'+
         '</div>'+
-        '<span class="psqty">'+esc(ln.qty||0)+' pcs</span>'+
-        (accHtml?'<div class="psaccs">'+accHtml+'</div>':'')+
+        '<span class="psqty"><span class="psqn" contenteditable="true">'+esc(ln.qty||0)+'</span> pcs</span>'+
+        '<div class="psaccs">'+accHtml+'</div>'+
       '</div>'+
     '</div>';
   }).join('');
@@ -887,6 +910,14 @@ function buildPrintSheet(){
 function openPrintSheet(){
   el('psPage').innerHTML=buildPrintSheet();
   el('printSheet').classList.remove('hide');
+  // remember hand-typed heading (supplier + container no) for this order
+  Array.prototype.forEach.call(el('psPage').querySelectorAll('[data-hk]'),function(node){
+    node.addEventListener('blur',function(){
+      var k=node.getAttribute('data-hk'), v=node.textContent.trim();
+      if(k==='supplier') order.printSupplier=v; else if(k==='container') order.containerNo=v;
+      saveLocal();
+    });
+  });
 }
 el('psPrint').onclick=function(){ window.print(); };
 el('psClose').onclick=function(){ el('printSheet').classList.add('hide'); };
@@ -901,7 +932,7 @@ el('btnLoad').onclick=openOrder;
 function saveOrder(){
   if(!order.lines.length) return alert('Nothing to save.');
   order.name=el('ordName').value.trim()||('Order '+new Date().toLocaleString());
-  var payload={ name:order.name, supplierId:order.supplierId||null, lines:order.lines, savedAt:Date.now() };
+  var payload={ name:order.name, supplierId:order.supplierId||null, lines:order.lines, savedAt:Date.now(), containerNo:order.containerNo||null, printSupplier:order.printSupplier||null };
   if(order._id){ db.ref(OB+'/orders/'+order._id).set(payload).then(function(){ setCloud('ok','order saved'); }); }
   else{ var r=db.ref(OB+'/orders').push(); r.set(payload).then(function(){ order._id=r.key; saveLocal(); setCloud('ok','order saved'); }).catch(function(e){ alert('Save failed: '+e.message); }); }
 }
@@ -918,7 +949,7 @@ function openOrder(){
     box.querySelectorAll('[data-open]').forEach(function(row){
       row.addEventListener('click',function(ev){
         if(ev.target.getAttribute('data-delorder')){ if(confirm('Delete this order?')){ db.ref(OB+'/orders/'+ev.target.getAttribute('data-delorder')).remove(); closeModal(); } return; }
-        var k=row.getAttribute('data-open'); order={name:o[k].name||'',supplierId:o[k].supplierId||null,lines:o[k].lines||[],_id:k};
+        var k=row.getAttribute('data-open'); order={name:o[k].name||'',supplierId:o[k].supplierId||null,lines:o[k].lines||[],_id:k,containerNo:o[k].containerNo||'',printSupplier:o[k].printSupplier||''};
         el('ordName').value=order.name; renderCards(); saveLocal(); closeModal();
       });
     });
