@@ -208,6 +208,56 @@
   .uparea img{max-width:100%;max-height:140px;border-radius:8px;margin-top:8px}
   .modal .foot{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
 
+
+  /* ---- price comparison page ---- */
+  #priceOverlay{background:var(--bg);padding:0}
+  #priceOverlay>.modal{width:100%;max-width:100%;height:100vh;max-height:100vh;border:none;border-radius:0;display:flex;flex-direction:column;padding:12px 16px}
+  .pxhead{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+  .pxhead .price{width:66px;padding:5px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);color:var(--txt)}
+  .pxhint{font-size:12px;color:var(--muted)}
+  .btn.ghost.on{border-color:var(--accent2);color:var(--accent2)}
+  .pxhidden{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:8px}
+  .pxchip{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:2px 9px;cursor:pointer}
+  .pxchip:hover{border-color:var(--accent2);color:var(--txt)}
+  .pxscroll{overflow:auto;flex:1;min-height:0;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+  .pxtable{border-collapse:separate;border-spacing:0;font-size:12px;width:max-content;min-width:100%}
+  .pxtable th,.pxtable td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:4px 6px;white-space:nowrap;vertical-align:top}
+  .pxtable thead th{position:sticky;top:0;z-index:3;background:var(--panel);text-align:center;font-weight:600}
+  .pxtable th.pxcorner{left:0;z-index:5;text-align:left;min-width:190px}
+  .pxtable td.pxitem{position:sticky;left:0;z-index:2;background:var(--panel2);text-align:left;min-width:190px;max-width:240px;white-space:normal;position:sticky}
+  .pxtable td.pxitem b{font-size:13px}
+  .pxtable td.pxitem .pxnm{color:var(--muted)}
+  .pxtable td.pxitem .pxcodes{display:block;color:var(--accent);opacity:.75;font-size:10px;margin-top:2px;white-space:normal}
+  .pxtable td.pxitem .pxedit{position:absolute;top:3px;right:3px;background:transparent;border:none;color:var(--muted);font-size:11px;padding:2px;opacity:0}
+  .pxtable td.pxitem:hover .pxedit{opacity:1;color:var(--accent)}
+  .pxtable tr.pxcatrow td{background:#12161b;color:var(--accent);font-weight:700;letter-spacing:.7px;text-transform:uppercase;font-size:11px;position:sticky;left:0}
+  .pxtable tbody tr:hover td:not(.pxitem){background:rgba(255,255,255,.03)}
+  .pxtable th.pxv{min-width:86px}
+  .pxtable th.pxv .vtop{display:flex;align-items:center;gap:3px;justify-content:center}
+  .pxtable th.pxv .vname{cursor:pointer;text-decoration:underline dotted var(--line);text-underline-offset:3px}
+  .pxtable th.pxv .vname:hover{color:var(--accent)}
+  .pxtable th.pxv .vhide{background:transparent;border:none;color:var(--muted);font-size:10px;padding:0 2px;opacity:.35}
+  .pxtable th.pxv:hover .vhide{opacity:1;color:var(--danger)}
+  .pxtable th.pxv .vsub{font-weight:400;color:var(--muted);font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis}
+  .pxtable th.pxv.hid .vname{opacity:.5;text-decoration:line-through}
+  .pxtable .vdot{width:7px;height:7px;border-radius:50%;display:inline-block;flex:none}
+  .pxtable .vdot.cur{background:var(--accent2)}
+  .pxtable .vdot.old{background:var(--danger)}
+  .pxtable th.stale,.pxtable td.stale{opacity:.45}
+  .pxtable td.pxc{text-align:center;padding:3px 4px}
+  .pxtable input.pxin{width:62px;padding:4px 5px;border-radius:5px;background:var(--bg);border:1px solid var(--line);color:var(--txt);text-align:right;font-size:12px}
+  .pxtable input.pxin:focus{outline:none;border-color:var(--accent)}
+  .pxtable .pxb{display:block;font-size:9px;color:var(--muted);margin-top:1px;min-height:11px}
+  .pxtable td.lo{background:rgba(34,197,94,.14)}
+  .pxtable td.lo input.pxin{color:var(--accent2);font-weight:800;border-color:rgba(34,197,94,.5)}
+  .pxtable td.hi{background:rgba(239,68,68,.12)}
+  .pxtable td.hi input.pxin{color:#fca5a5;border-color:rgba(239,68,68,.4)}
+  .pxtable td.pxbest,.pxtable th.pxbest{text-align:left;font-size:11px;color:var(--muted);min-width:210px}
+  .pxtable td.pxbest .loT{color:var(--accent2);font-size:12px}
+  .pxtable td.pxbest .hiT{color:#b98b8b}
+  .pxtable .pxnone{color:var(--line)}
+  .pxtable td.pxitem{position:relative}
+
   /* ---- printable overview sheet (Import PI → print) ---- */
   #printTitle{display:none}
   #printSheet{position:fixed;inset:0;background:#525659;overflow:auto;z-index:60}
@@ -271,6 +321,7 @@
   <button class="btn" id="btnLoad">Open</button>
   <button class="btn" id="btnSave">Save</button>
   <button class="btn" id="btnProducts">📋 Products</button>
+  <button class="btn" id="btnPrices">📊 Prices</button>
   <button class="btn" id="btnPhotos">📷 Catalog</button>
   <button class="btn primary" id="btnPdf">🖨️ Print sheet</button>
   <button class="btn green" id="btnXls">Export Excel</button>
@@ -345,6 +396,9 @@
 <div class="ov hide" id="prodOverlay">
   <div class="modal wide" id="prodBox"></div>
 </div>
+<div class="ov hide" id="priceOverlay">
+  <div class="modal wide" id="priceBox"></div>
+</div>
 <!-- printable overview sheet (what you print / save as PDF) -->
 <div class="hide" id="printSheet">
   <div class="psbar noprint">
@@ -410,8 +464,11 @@ function obStart(){
     if(ov && !ov.classList.contains('hide') && !ov.querySelector('.ptable tbody tr[data-pkey]')) openProducts();
   },function(){});
   db.ref(OB+'/settings/thbRate').on('value',function(s){ var v=s.val(); if(v) thbRate=parseFloat(v)||thbRate; },function(){});
+  db.ref(OB+'/vendors').on('value',function(s){ vend=s.val()||{}; pxRefresh(); },function(){});
+  db.ref(OB+'/priceItems').on('value',function(s){ pitems=s.val()||{}; pxRefresh(); },function(){});
   db.ref('pub/webCatalog').on('value',function(s){ cat.webCatalog=s.val()||{}; },function(){});
   seedDefaults();
+  seedPrices();
 }
 if(db){
   firebase.auth().signInAnonymously()
@@ -1769,12 +1826,17 @@ function recalcBaht(box){
 }
 /* Products is the home page; the composer/builder lives behind #build */
 function showComposerPage(){ if(el('prodOverlay')) el('prodOverlay').classList.add('hide'); document.querySelector('.composer').scrollIntoView({behavior:'smooth'}); }
-el('btnProducts').onclick=function(){ if(location.hash==='#build') location.hash=''; else openProducts(); }; // back to home
-window.addEventListener('hashchange',function(){
-  if(location.hash==='#build') showComposerPage();
+el('btnProducts').onclick=function(){ if(location.hash) location.hash=''; else openProducts(); }; // back to home
+el('btnPrices').onclick=function(){ if(location.hash==='#prices') location.hash=''; else location.hash='prices'; };
+function pxRoute(){
+  var h=location.hash;
+  if(h==='#prices'){ openPrices(); return; }          // openPrices hides the Products page
+  if(el('priceOverlay')) el('priceOverlay').classList.add('hide');
+  if(h==='#build') showComposerPage();
   else openProducts(); // '' (home) and #products both show Products
-});
-if(location.hash!=='#build') setTimeout(openProducts,300); // default landing = Products
+}
+window.addEventListener('hashchange',pxRoute);
+if(location.hash!=='#build') setTimeout(pxRoute,300); // default landing = Products
 
 function exportProducts(){
   var list=prodVisibleList(); if(!list.length) return alert('No products.');
@@ -1815,6 +1877,330 @@ function exportProducts(){
     setTimeout(function(){ URL.revokeObjectURL(a.href); },4000);
     el('pExport').textContent='Export Excel';
   }).catch(function(e){ el('pExport').textContent='Export Excel'; alert('Export failed: '+e.message); });
+}
+
+/* ================= PRICE COMPARISON (suppliers × items) =====================
+   vendors/{sid}     {name,company,channel,contact,books,note,status,hidden,sort,img}
+   priceItems/{iid}  {cat,size,name,unit,note,sort,px:{sid:{u:usd,t:when}}}
+   sid = supKey(name) — the SAME id the per-product supplier chips use, so a
+   supplier known here is the same record as on a product row.               */
+var vend={}, pitems={};
+var pxShowHidden=false, pxOnlyCur=false, pxBaht=true;
+var PX_CATS=['WPC Panel','PVC Ceiling','Bamboo PVC','Partition','ASA','Accessories'];
+var PX_CHANNELS=['WeChat','WhatsApp','Alibaba','Line','Email','Phone','Facebook','Other'];
+var PX_SEED={"vendors":[{"n":"Jacky","s":"current"},{"n":"Belinda","s":""},{"n":"Pink","s":"current"},{"n":"Vladimir","s":"current"},{"n":"Shirley","s":""},{"n":"Nancy","s":""},{"n":"Dancia","s":""},{"n":"Landy","s":""},{"n":"Angel","s":""},{"n":"Fiona","s":""},{"n":"Maria","s":""},{"n":"Sandra","s":""},{"n":"Longqin","s":""}],"items":[{"c":"Accessories","s":"1 CTN 5000 pcs","n":"CLIP","u":"ctn","p":{"Jacky":25.5,"Belinda":42.5,"Pink":25,"Vladimir":25,"Shirley":25.71,"Landy":30,"Fiona":30}},{"c":"Accessories","s":"25*25*2900","n":"L-Corner","u":"pcs","p":{"Jacky":0.61,"Belinda":0.64,"Pink":0.6,"Vladimir":0.6,"Shirley":0.65,"Landy":0.6,"Fiona":0.75}},{"c":"WPC Panel","s":"158*9*2900","n":"","u":"pcs","p":{"Jacky":1.42,"Belinda":1.4,"Pink":1.54,"Vladimir":1.09,"Shirley":1.39,"Landy":1.08,"Angel":1.39,"Fiona":1.54,"Sandra":1.54}},{"c":"WPC Panel","s":"200*12*2900","n":"","u":"pcs","p":{"Jacky":1.6,"Belinda":1.49,"Pink":1.48,"Vladimir":1.46,"Shirley":1.61,"Nancy":1.74,"Landy":1.49,"Fiona":1.7,"Sandra":1.69}},{"c":"WPC Panel","s":"195*14*2900","n":"","u":"pcs","p":{"Jacky":1.81,"Pink":1.9,"Nancy":1.91,"Landy":1.73,"Angel":1.82,"Fiona":1.92}},{"c":"WPC Panel","s":"200*23*2900","n":"","u":"pcs","p":{"Jacky":2.3,"Vladimir":2.15,"Landy":2.3,"Sandra":2.89}},{"c":"WPC Panel","s":"165*20*2900","n":"","u":"pcs","p":{"Belinda":1.33,"Pink":1.54,"Vladimir":1.49,"Shirley":1.75,"Nancy":1.7,"Landy":1.5,"Fiona":1.69}},{"c":"WPC Panel","s":"165*22*2900","n":"","u":"pcs","p":{"Jacky":1.6,"Pink":1.54,"Vladimir":1.52,"Dancia":1.82,"Landy":1.48,"Sandra":1.69,"Longqin":1.45}},{"c":"WPC Panel","s":"165*23*2900","n":"","u":"pcs","p":{"Vladimir":1.5}},{"c":"WPC Panel","s":"160*24*2900","n":"","u":"pcs","p":{"Pink":1.54,"Vladimir":1.5,"Shirley":1.68,"Nancy":1.7,"Landy":1.77,"Angel":1.66}},{"c":"WPC Panel","s":"170*18*2900","n":"","u":"pcs","p":{"Jacky":1.7,"Belinda":1.47,"Vladimir":1.56,"Nancy":1.91,"Dancia":2.2,"Landy":1.77,"Angel":1.8,"Fiona":2.02}},{"c":"WPC Panel","s":"200*13*2900","n":"","u":"pcs","p":{"Jacky":1.6,"Belinda":1.62,"Vladimir":1.48,"Nancy":3.03,"Landy":1.88,"Fiona":1.54,"Sandra":1.69}},{"c":"WPC Panel","s":"163*10*2900","n":"","u":"pcs","p":{"Belinda":1.62,"Vladimir":1.52,"Nancy":1.82,"Dancia":2.46,"Fiona":1.84}},{"c":"WPC Panel","s":"200*9*2900","n":"","u":"pcs","p":{"Jacky":1.8,"Belinda":1.64,"Pink":1.69,"Vladimir":1.49,"Shirley":1.99,"Nancy":1.99,"Landy":1.65,"Angel":2.06}},{"c":"PVC Ceiling","s":"260*8*2900","n":"","u":"pcs","p":{"Jacky":1.09,"Vladimir":1.26,"Angel":1.39,"Fiona":1.47}},{"c":"PVC Ceiling","s":"300*8*2900","n":"","u":"pcs","p":{"Jacky":2,"Pink":1.6,"Vladimir":1.29,"Landy":1.89,"Angel":1.76,"Fiona":1.63}},{"c":"PVC Ceiling","s":"400*7*2900 (3,016kg)","n":"","u":"pcs","p":{"Vladimir":1.68,"Landy":2.68}},{"c":"PVC Ceiling","s":"400*8*2900 (3,5kg)","n":"","u":"pcs","p":{"Vladimir":1.85}},{"c":"PVC Ceiling","s":"400*8*2900 (4,4 kg)","n":"","u":"pcs","p":{"Jacky":2.7,"Pink":2.69,"Vladimir":2.2}},{"c":"Bamboo PVC","s":"400*8*2900","n":"","u":"pcs","p":{"Jacky":3.25,"Nancy":4.2,"Angel":3.05,"Fiona":3.67}},{"c":"Partition","s":"400*26*2900","n":"","u":"pcs","p":{"Pink":7.54,"Nancy":8.12}},{"c":"Partition","s":"2900","n":"","u":"pcs","p":{"Pink":4.35}},{"c":"ASA","s":"161*10*2900","n":"","u":"pcs","p":{"Maria":4.52}},{"c":"ASA","s":"160*10*2900","n":"","u":"pcs","p":{"Maria":4.96}},{"c":"ASA","s":"190*20*2900","n":"","u":"pcs","p":{"Maria":5.95}}]};
+
+function iKey(cat,size,name){
+  var s=((cat||'')+' '+(name||'')+' '+(size||'')).toLowerCase();
+  return s.replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'')||'item';
+}
+function vList(){
+  return entries(vend).map(function(e){ var v=e[1]||{}; return {sid:e[0], name:v.name||e[0], v:v}; })
+    .sort(function(a,b){ var s=(a.v.sort||0)-(b.v.sort||0); return s||(a.name.toLowerCase()<b.name.toLowerCase()?-1:1); });
+}
+/* hidden suppliers stay in the DB — they just drop out of the table until you bring them back */
+function vVisible(){
+  return vList().filter(function(x){
+    if(x.v.hidden && !pxShowHidden) return false;
+    if(pxOnlyCur && x.v.status!=='current') return false;
+    return true;
+  });
+}
+function natSize(s){ var m=(s||'').match(/\d+/); return m?parseInt(m[0],10):0; }
+function iList(){
+  var arr=entries(pitems).map(function(e){ return {iid:e[0], it:e[1]||{}}; })
+    .filter(function(x){ return x.it && (x.it.size||x.it.name); });
+  arr.sort(function(a,b){
+    var ca=PX_CATS.indexOf(a.it.cat||''), cb=PX_CATS.indexOf(b.it.cat||'');
+    if(ca<0) ca=90; if(cb<0) cb=90;
+    if(ca!==cb) return ca-cb;
+    if((a.it.cat||'')!==(b.it.cat||'')) return (a.it.cat||'')<(b.it.cat||'')?-1:1;
+    var d=(a.it.sort||0)-(b.it.sort||0); if(d) return d;
+    return natSize(a.it.size)-natSize(b.it.size);
+  });
+  return arr;
+}
+function pxGet(it,sid){ var v=it&&it.px&&it.px[sid]; if(v==null||v==='') return '';
+  if(typeof v==='object') return (v.u==null||v.u==='')?'':v.u; return v; }
+function pxTs(it,sid){ var v=it&&it.px&&it.px[sid]; return (v&&typeof v==='object'&&v.t)||0; }
+function pxSet(iid,sid,usd){
+  var it=pitems[iid]||(pitems[iid]={}); it.px=it.px||{};
+  if(usd===''){ delete it.px[sid]; if(db) db.ref(OB+'/priceItems/'+iid+'/px/'+sid).remove(); }
+  else { var rec={u:usd,t:Date.now()}; it.px[sid]=rec; if(db) db.ref(OB+'/priceItems/'+iid+'/px/'+sid).set(rec); }
+}
+/* which product codes in the catalog have this size — links the price list to the products */
+function sizeKey(s){ var m=(s||'').toLowerCase().replace(/mm/g,'').match(/(\d+)\s*[*x×]\s*(\d+)\s*[*x×]\s*(\d+)/); return m?(m[1]+'*'+m[2]+'*'+m[3]):''; }
+function codesForSize(size){
+  var k=sizeKey(size); if(!k) return '';
+  var out=[]; entries(cat.products).forEach(function(e){ var p=e[1]; if(p&&p.code&&sizeKey(p.size)===k) out.push(p.code); });
+  out.sort();
+  return out.length?(out.slice(0,5).join(' ')+(out.length>5?' +'+(out.length-5):'')):'';
+}
+
+/* ---------- render ---------- */
+function pxRefresh(){
+  var ov=el('priceOverlay'); if(!ov||ov.classList.contains('hide')) return;
+  var a=document.activeElement;
+  if(a && ov.contains(a) && (a.tagName==='INPUT'||a.tagName==='SELECT')) return; // don't yank the field being typed in
+  openPrices();
+}
+function vHeadHtml(x){
+  var d=x.v, sub=[];
+  if(d.channel) sub.push(d.channel);
+  var nb=String(d.books||'').split(',').filter(function(s){return s.trim();}).length;
+  if(nb) sub.push(nb+' book'+(nb>1?'s':''));
+  if(d.company) sub.unshift(d.company);
+  return '<th class="pxv'+(d.status==='old'?' stale':'')+(d.hidden?' hid':'')+'" data-sid="'+esc(x.sid)+'">'+
+    '<div class="vtop">'+
+      (d.status==='current'?'<i class="vdot cur" title="prices are current"></i>':d.status==='old'?'<i class="vdot old" title="outdated — do not use"></i>':'')+
+      '<span class="vname" data-sid="'+esc(x.sid)+'" title="company · contact · colour books">'+esc(x.name)+'</span>'+
+      '<button class="vhide" data-sid="'+esc(x.sid)+'" title="'+(d.hidden?'show again':'hide (prices are kept)')+'">'+(d.hidden?'👁':'✕')+'</button>'+
+    '</div>'+
+    '<div class="vsub" title="'+esc([d.company,d.channel&&(d.channel+(d.contact?' '+d.contact:'')),d.books].filter(Boolean).join(' · '))+'">'+esc(sub.join(' · ')||'—')+'</div></th>';
+}
+function pxRowHtml(iid,it,vs){
+  var vals=[];
+  vs.forEach(function(x){ var p=pxGet(it,x.sid); if(p!=='') vals.push(+p); });
+  var lo=vals.length?Math.min.apply(null,vals):null;
+  var hi=vals.length?Math.max.apply(null,vals):null;
+  var many=vals.length>1;
+  var tds=vs.map(function(x){
+    var p=pxGet(it,x.sid), cls='pxc'+(x.v.status==='old'?' stale':'');
+    if(p!==''&&many){ if(+p===lo) cls+=' lo'; else if(+p===hi) cls+=' hi'; }
+    var ts=pxTs(it,x.sid);
+    return '<td class="'+cls+'" data-i="'+esc(iid)+'" data-sid="'+esc(x.sid)+'"'+(ts?' title="'+esc(x.name)+' · updated '+new Date(ts).toISOString().slice(0,10)+'"':' title="'+esc(x.name)+'"')+'>'+
+      '<input class="pxin" type="number" step="0.01" min="0" data-i="'+esc(iid)+'" data-sid="'+esc(x.sid)+'" value="'+esc(p)+'" placeholder="–">'+
+      '<span class="pxb">'+(p!==''&&pxBaht?('฿'+bahtOf(p)):'')+'</span></td>';
+  }).join('');
+  function who(val){ return vs.filter(function(x){ var p=pxGet(it,x.sid); return p!==''&&+p===val; }).map(function(x){ return x.name; }).join(', '); }
+  var best='<span class="pxnone">—</span>';
+  if(vals.length){
+    best='<b class="loT">$'+lo.toFixed(2)+'</b> '+esc(who(lo));
+    if(many&&hi>lo) best+='<span class="hiT"> · $'+hi.toFixed(2)+' '+esc(who(hi))+' <b>+'+Math.round((hi-lo)/lo*100)+'%</b></span>';
+  }
+  var codes=codesForSize(it.size);
+  var srch=((it.cat||'')+' '+(it.size||'')+' '+(it.name||'')+' '+codes+' '+vs.filter(function(x){return pxGet(it,x.sid)!=='';}).map(function(x){return x.name;}).join(' ')).toLowerCase();
+  return '<tr data-i="'+esc(iid)+'" data-s="'+esc(srch)+'">'+
+    '<td class="pxitem"><b>'+esc(it.size||it.name||'—')+'</b>'+
+      (it.name&&it.size?' <span class="pxnm">'+esc(it.name)+'</span>':'')+
+      (it.unit&&it.unit!=='pcs'?' <span class="pxnm">/'+esc(it.unit)+'</span>':'')+
+      (codes?'<small class="pxcodes">'+esc(codes)+'</small>':'')+
+      '<button class="pxedit" data-i="'+esc(iid)+'" title="edit / delete this row">✎</button></td>'+
+    tds+'<td class="pxaddc"></td><td class="pxbest">'+best+'</td></tr>';
+}
+function openPrices(){
+  if(el('prodOverlay')) el('prodOverlay').classList.add('hide');
+  var box=el('priceBox'), ovl=el('priceOverlay');
+  var old=box.querySelector('.pxscroll'), st=old?old.scrollTop:0, sl=old?old.scrollLeft:0;
+  var term=(el('pxSearch')?el('pxSearch').value:'');
+  var vs=vVisible(), items=iList(), ncols=vs.length+3;
+  var head='<tr><th class="pxcorner">Item · size</th>'+vs.map(vHeadHtml).join('')+
+    '<th class="pxaddc"><button class="btn ghost" id="pxAddV" title="add a supplier column">＋</button></th>'+
+    '<th class="pxbest">cheapest · dearest</th></tr>';
+  var body='', lastCat=null;
+  items.forEach(function(x){
+    if((x.it.cat||'')!==lastCat){ lastCat=x.it.cat||''; body+='<tr class="pxcatrow"><td colspan="'+ncols+'">'+esc(lastCat||'Other')+'</td></tr>'; }
+    body+=pxRowHtml(x.iid,x.it,vs);
+  });
+  if(!items.length) body='<tr><td colspan="'+ncols+'" style="padding:22px;color:var(--muted)">No items yet — use ＋ item.</td></tr>';
+  var hiddenOnes=vList().filter(function(x){ return x.v.hidden; });
+  box.innerHTML=
+    '<div class="pxhead">'+
+      '<h3 style="margin:0">📊 Price comparison</h3>'+
+      '<span class="pxhint" id="pxCount">'+items.length+' items · '+vs.length+' suppliers</span>'+
+      '<input class="field" id="pxSearch" placeholder="search size, supplier, code…" style="flex:1;min-width:140px" value="'+esc(term)+'">'+
+      '<label class="pxhint" style="white-space:nowrap">USD→THB <input class="price" id="pxRate" type="number" step="0.1" value="'+esc(thbRate)+'"></label>'+
+      '<button class="btn ghost'+(pxBaht?' on':'')+'" id="pxBahtT" title="show the THB price under each USD price">฿</button>'+
+      '<button class="btn ghost'+(pxOnlyCur?' on':'')+'" id="pxCurT" title="show only suppliers marked as current">✓ current only</button>'+
+      '<button class="btn ghost'+(pxShowHidden?' on':'')+'" id="pxHidT" title="show the hidden suppliers again">👁 hidden ('+hiddenOnes.length+')</button>'+
+      '<button class="btn" id="pxAddI">＋ item</button>'+
+      '<button class="btn green" id="pxCsv">Export CSV</button>'+
+      '<button class="btn" id="pxToProd">📋 Products →</button>'+
+    '</div>'+
+    (hiddenOnes.length&&!pxShowHidden?'<div class="pxhidden">hidden: '+hiddenOnes.map(function(x){ return '<span class="pxchip" data-unhide="'+esc(x.sid)+'">'+esc(x.name)+' ↩</span>'; }).join('')+'</div>':'')+
+    '<div class="pxscroll"><table class="pxtable"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>'+
+    '<div class="pxhint" style="margin-top:6px">Green = cheapest, red = dearest (only among the suppliers you can see). Click a supplier name for company / contact / colour books, ✕ hides the column (prices stay saved). Type straight into a cell to change a price.</div>';
+  ovl.classList.remove('hide');
+  var sc=box.querySelector('.pxscroll'); if(sc){ sc.scrollTop=st; sc.scrollLeft=sl; }
+  el('pxSearch').oninput=function(){ pxFilter(box); };
+  el('pxRate').onchange=function(){ thbRate=parseFloat(this.value)||thbRate; if(db) db.ref(OB+'/settings/thbRate').set(thbRate); openPrices(); };
+  el('pxBahtT').onclick=function(){ pxBaht=!pxBaht; openPrices(); };
+  el('pxCurT').onclick=function(){ pxOnlyCur=!pxOnlyCur; openPrices(); };
+  el('pxHidT').onclick=function(){ pxShowHidden=!pxShowHidden; openPrices(); };
+  el('pxAddI').onclick=function(){ openItemModal(null); };
+  el('pxAddV').onclick=function(){ openVendorModal(null); };
+  el('pxCsv').onclick=pxExportCsv;
+  el('pxToProd').onclick=function(){ location.hash=''; };
+  if(!box._pxWired){ box._pxWired=true;
+    box.addEventListener('change',function(e){
+      var t=e.target;
+      if(t&&t.classList&&t.classList.contains('pxin')){
+        var v=t.value.trim(), num=v===''?'':(Math.round((parseFloat(v.replace(',','.'))||0)*1000)/1000);
+        pxSet(t.getAttribute('data-i'), t.getAttribute('data-sid'), num);
+        pxRedrawRow(t.getAttribute('data-i'));
+      }
+    });
+    box.addEventListener('click',function(e){
+      var h=e.target.closest&&e.target.closest('.vhide');
+      if(h){ e.preventDefault(); pxToggleHide(h.getAttribute('data-sid')); return; }
+      var n=e.target.closest&&e.target.closest('.vname');
+      if(n){ e.preventDefault(); openVendorModal(n.getAttribute('data-sid')); return; }
+      var ed=e.target.closest&&e.target.closest('.pxedit');
+      if(ed){ e.preventDefault(); openItemModal(ed.getAttribute('data-i')); return; }
+      var un=e.target.closest&&e.target.closest('[data-unhide]');
+      if(un){ e.preventDefault(); pxToggleHide(un.getAttribute('data-unhide')); return; }
+    });
+  }
+  pxFilter(box);
+}
+/* re-render a single row so cheapest/dearest re-rank after an edit, without losing the table */
+function pxRedrawRow(iid){
+  var box=el('priceBox'); if(!box) return;
+  var tr=box.querySelector('tr[data-i="'+iid+'"]'); if(!tr) return;
+  var tmp=document.createElement('tbody');
+  tmp.innerHTML=pxRowHtml(iid, pitems[iid]||{}, vVisible());
+  tr.parentNode.replaceChild(tmp.firstChild, tr);
+}
+function pxToggleHide(sid){
+  var v=vend[sid]; if(!v) return;
+  var now=!v.hidden; v.hidden=now?true:null;
+  if(db) db.ref(OB+'/vendors/'+sid+'/hidden').set(now?true:null);
+  openPrices();
+}
+function pxFilter(box){
+  var t=(el('pxSearch')?el('pxSearch').value:'').toLowerCase().trim(), shown=0;
+  var rows=box.querySelectorAll('tbody tr');
+  Array.prototype.forEach.call(rows,function(tr){
+    if(tr.classList.contains('pxcatrow')) return;
+    var vis=!t || (tr.getAttribute('data-s')||'').indexOf(t)>=0;
+    tr.style.display=vis?'':'none'; if(vis) shown++;
+  });
+  Array.prototype.forEach.call(rows,function(tr){ // hide a category heading whose rows are all filtered out
+    if(!tr.classList.contains('pxcatrow')) return;
+    var any=false, n=tr.nextElementSibling;
+    while(n && !n.classList.contains('pxcatrow')){ if(n.style.display!=='none') any=true; n=n.nextElementSibling; }
+    tr.style.display=any?'':'none';
+  });
+  var c=el('pxCount'); if(c) c.textContent=shown+' items · '+vVisible().length+' suppliers';
+}
+
+/* ---------- supplier card ---------- */
+function openVendorModal(sid){
+  var d=(sid&&vend[sid])||{}, isNew=!sid;
+  var bookNames=entries(cat.colorBooks).map(function(e){ return (e[1]&&e[1].name)||''; }).filter(Boolean);
+  var used=[]; if(!isNew) iList().forEach(function(x){ if(pxGet(x.it,sid)!=='') used.push(x.it.size||x.it.name); });
+  el('modalBox').innerHTML='<h3>'+(isNew?'New supplier':esc(d.name||sid))+'</h3>'+
+    (d.img?'<img src="'+esc(d.img)+'" style="max-width:100%;max-height:150px;border-radius:8px;margin-bottom:6px">':'')+
+    '<label>Name (as you call them)</label><input class="field" id="vName" value="'+esc(d.name||'')+'" placeholder="e.g. Vladimir">'+
+    '<label>Company / factory</label><input class="field" id="vComp" value="'+esc(d.company||'')+'" placeholder="e.g. Linyi Pimmigrand">'+
+    '<div class="row"><div><label>Contact channel</label><select class="field" id="vChan">'+
+      '<option value=""></option>'+PX_CHANNELS.map(function(c){ return '<option'+(d.channel===c?' selected':'')+'>'+c+'</option>'; }).join('')+
+    '</select></div><div><label>ID / number</label><input class="field" id="vCont" value="'+esc(d.contact||'')+'" placeholder="WeChat id, phone…"></div></div>'+
+    '<label>Colour books they can do</label><input class="field" id="vBooks" list="vBookList" value="'+esc(d.books||'')+'" placeholder="comma separated">'+
+    '<datalist id="vBookList">'+bookNames.map(function(b){ return '<option value="'+esc(b)+'">'; }).join('')+'</datalist>'+
+    '<div class="row"><div><label>Prices status</label><select class="field" id="vStat">'+
+      '<option value=""'+(!d.status?' selected':'')+'>— not checked —</option>'+
+      '<option value="current"'+(d.status==='current'?' selected':'')+'>current — use these</option>'+
+      '<option value="old"'+(d.status==='old'?' selected':'')+'>outdated — do not use</option>'+
+    '</select></div><div><label>Photo / name card</label><input type="file" accept="image/*" id="vImg" class="field"></div></div>'+
+    '<label>Note</label><input class="field" id="vNote" value="'+esc(d.note||'')+'" placeholder="MOQ, lead time, payment…">'+
+    (used.length?'<div class="pxhint" style="margin-top:10px">Quotes on file: '+esc(used.slice(0,12).join(', '))+(used.length>12?' …':'')+'</div>':'')+
+    '<div class="foot">'+(isNew?'':'<button class="btn" id="vDel" style="margin-right:auto;color:var(--danger)">Delete</button>')+
+      '<button class="btn ghost" id="mCancel">Cancel</button><button class="btn primary" id="vSave">Save</button></div>';
+  el('modal').classList.remove('hide');
+  el('mCancel').onclick=closeModal;
+  var newImg=null;
+  el('vImg').onchange=function(){ photoFromFile(this.files&&this.files[0],function(u){ newImg=u; }); };
+  el('vSave').onclick=function(){
+    var name=el('vName').value.trim(); if(!name){ alert('Name?'); return; }
+    var id=sid||supKey(name);
+    var rec={ name:name, company:el('vComp').value.trim(), channel:el('vChan').value,
+      contact:el('vCont').value.trim(), books:el('vBooks').value.trim(),
+      status:el('vStat').value, note:el('vNote').value.trim() };
+    if(newImg) rec.img=newImg;
+    if(isNew) rec.sort=vList().length;
+    vend[id]=vend[id]||{}; Object.keys(rec).forEach(function(k){ vend[id][k]=rec[k]; });
+    if(db) db.ref(OB+'/vendors/'+id).update(rec);
+    closeModal(); openPrices();
+  };
+  if(!isNew) el('vDel').onclick=function(){
+    if(!confirm('Delete supplier "'+(d.name||sid)+'" and all their prices in this list?\n\n(Products keep their own supplier chips.)')) return;
+    var upd={}; upd['vendors/'+sid]=null;
+    iList().forEach(function(x){ if(x.it.px&&x.it.px[sid]!=null) upd['priceItems/'+x.iid+'/px/'+sid]=null; });
+    delete vend[sid];
+    if(db) db.ref(OB).update(upd);
+    closeModal(); openPrices();
+  };
+}
+
+/* ---------- item (product / material row) ---------- */
+function openItemModal(iid){
+  var d=(iid&&pitems[iid])||{}, isNew=!iid;
+  var cats={}; iList().forEach(function(x){ if(x.it.cat) cats[x.it.cat]=1; }); PX_CATS.forEach(function(c){ cats[c]=1; });
+  el('modalBox').innerHTML='<h3>'+(isNew?'New item':'Edit item')+'</h3>'+
+    '<label>Category / material</label><input class="field" id="iCat" list="iCatList" value="'+esc(d.cat||'')+'" placeholder="e.g. WPC Panel">'+
+    '<datalist id="iCatList">'+Object.keys(cats).map(function(c){ return '<option value="'+esc(c)+'">'; }).join('')+'</datalist>'+
+    '<label>Size / spec</label><input class="field" id="iSize" value="'+esc(d.size||'')+'" placeholder="e.g. 158*9*2900">'+
+    '<div class="row"><div><label>Name (optional)</label><input class="field" id="iName" value="'+esc(d.name||'')+'" placeholder="e.g. L-Corner"></div>'+
+    '<div><label>Unit</label><input class="field" id="iUnit" value="'+esc(d.unit||'pcs')+'" placeholder="pcs / ctn / m"></div></div>'+
+    '<label>Note</label><input class="field" id="iNote" value="'+esc(d.note||'')+'" placeholder="weight, MOQ…">'+
+    '<div class="foot">'+(isNew?'':'<button class="btn" id="iDel" style="margin-right:auto;color:var(--danger)">Delete</button>')+
+      '<button class="btn ghost" id="mCancel">Cancel</button><button class="btn primary" id="iSave">Save</button></div>';
+  el('modal').classList.remove('hide');
+  el('mCancel').onclick=closeModal;
+  el('iSave').onclick=function(){
+    var c=el('iCat').value.trim(), s=el('iSize').value.trim(), n=el('iName').value.trim();
+    if(!s&&!n){ alert('Size or name?'); return; }
+    var rec={ cat:c, size:s, name:n, unit:el('iUnit').value.trim()||'pcs', note:el('iNote').value.trim() };
+    var id=iid||iKey(c,s,n);
+    if(isNew&&pitems[id]){ alert('That row already exists.'); return; }
+    if(isNew) rec.sort=iList().length;
+    pitems[id]=pitems[id]||{}; Object.keys(rec).forEach(function(k){ pitems[id][k]=rec[k]; });
+    if(db) db.ref(OB+'/priceItems/'+id).update(rec);
+    closeModal(); openPrices();
+  };
+  if(!isNew) el('iDel').onclick=function(){
+    if(!confirm('Delete "'+(d.size||d.name)+'" with all its prices?')) return;
+    delete pitems[iid]; if(db) db.ref(OB+'/priceItems/'+iid).remove();
+    closeModal(); openPrices();
+  };
+}
+
+/* ---------- export ---------- */
+function pxExportCsv(){
+  var vs=vVisible(), rows=[];
+  rows.push(['Category','Item / size','Unit'].concat(vs.map(function(x){ return x.name+' USD'; })).concat(['Cheapest','USD','Dearest','USD','Spread %']));
+  iList().forEach(function(x){
+    var it=x.it, vals=[];
+    var cells=vs.map(function(v){ var p=pxGet(it,v.sid); if(p!=='') vals.push(+p); return p===''?'':String(p).replace('.',','); });
+    var lo=vals.length?Math.min.apply(null,vals):'', hi=vals.length?Math.max.apply(null,vals):'';
+    function who(val){ return vs.filter(function(v){ var p=pxGet(it,v.sid); return p!==''&&+p===val; }).map(function(v){ return v.name; }).join('/'); }
+    rows.push([it.cat||'', it.size||it.name||'', it.unit||''].concat(cells).concat(
+      vals.length?[who(lo), String(lo).replace('.',','), who(hi), String(hi).replace('.',','), (lo?Math.round((hi-lo)/lo*100):0)+'%']:['','','','','']));
+  });
+  var csv=rows.map(function(r){ return r.map(function(c){ c=(c==null?'':String(c)); return /[";\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c; }).join(';'); }).join('\r\n');
+  var blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+  var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='KP_price_comparison_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); },4000);
+}
+
+/* ---------- one-time seed from the Google price sheet ---------- */
+function seedPrices(){
+  if(!db||!PX_SEED) return;
+  db.ref(OB+'/settings/pricesSeeded').once('value').then(function(s){
+    if(s.val()) return;
+    db.ref(OB+'/settings/pricesSeeded').set(Date.now());
+    var upd={};
+    PX_SEED.vendors.forEach(function(v,i){
+      upd['vendors/'+supKey(v.n)]={ name:v.n, sort:i, status:v.s||'', company:'', channel:'', contact:'', books:'', note:'' };
+    });
+    PX_SEED.items.forEach(function(it,i){
+      var px={}; entries(it.p).forEach(function(e){ px[supKey(e[0])]={u:e[1],t:0}; });
+      upd['priceItems/'+iKey(it.c,it.s,it.n||'')]={ cat:it.c, size:it.s, name:it.n||'', unit:it.u||'pcs', sort:i, note:'', px:px };
+    });
+    db.ref(OB).update(upd).catch(function(e){ console.warn('price seed failed',e); });
+  }).catch(function(){});
 }
 
 /* ---------- Import directly from Google Drive ---------- */
