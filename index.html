@@ -228,6 +228,10 @@
   .pxtable td.pxitem b{font-size:13px}
   .pxtable td.pxitem .pxnm{color:var(--muted)}
   .pxtable td.pxitem .pxcodes{display:block;color:var(--accent);opacity:.75;font-size:10px;margin-top:2px;white-space:normal}
+  .pxtable td.pxitem .pxirow{display:flex;gap:7px;align-items:flex-start}
+  .pxtable td.pxitem .pxthumb{width:40px;height:40px;flex:none;object-fit:cover;border-radius:5px;background:#0c0f13;border:1px solid var(--line)}
+  .pxtable td.pxitem .pxthumb.pxnoimg{display:flex;align-items:center;justify-content:center;color:var(--line);font-size:18px}
+  .pxtable td.pxitem .pxitxt{min-width:0}
   .pxtable td.pxitem .pxedit{position:absolute;top:3px;right:3px;background:transparent;border:none;color:var(--muted);font-size:11px;padding:2px;opacity:0}
   .pxtable td.pxitem:hover .pxedit{opacity:1;color:var(--accent)}
   .pxtable tr.pxcatrow td{background:#12161b;color:var(--accent);font-weight:700;letter-spacing:.7px;text-transform:uppercase;font-size:11px;position:sticky;left:0}
@@ -1958,6 +1962,17 @@ function vHeadHtml(x){
     '</div>'+
     '<div class="vsub" title="'+esc([d.company,d.channel&&(d.channel+(d.contact?' '+d.contact:'')),d.books].filter(Boolean).join(' · '))+'">'+esc(sub.join(' · ')||'—')+'</div></th>';
 }
+/* a thumbnail for a comparison row: first product of that size that has a photo
+   (catalog prodImg/colorImg → website photo), so you see the shape at a glance */
+function pxRowImg(it){
+  var k=sizeKey(it.size); if(!k) return '';
+  var ms=[]; entries(cat.products).forEach(function(e){ var p=e[1]; if(p&&p.code&&sizeKey(p.size)===k) ms.push(p); });
+  if(!ms.length) return '';
+  ms.sort(function(a,b){ return (natCode(a.code)-natCode(b.code))||(a.code<b.code?-1:1); });
+  for(var i=0;i<ms.length;i++){ if(ms[i].prodImg) return ms[i].prodImg; }
+  for(var i=0;i<ms.length;i++){ if(ms[i].colorImg) return ms[i].colorImg; }
+  return IMG_BASE+ms[0].code.trim().toUpperCase()+'.jpg';
+}
 function pxRowHtml(iid,it,vs){
   var vals=[];
   vs.forEach(function(x){ var p=pxGet(it,x.sid); if(p!=='') vals.push(+p); });
@@ -1980,11 +1995,15 @@ function pxRowHtml(iid,it,vs){
   }
   var codes=codesForSize(it.size);
   var srch=((it.cat||'')+' '+(it.size||'')+' '+(it.name||'')+' '+codes+' '+vs.filter(function(x){return pxGet(it,x.sid)!=='';}).map(function(x){return x.name;}).join(' ')).toLowerCase();
+  var rimg=pxRowImg(it);
   return '<tr data-i="'+esc(iid)+'" data-s="'+esc(srch)+'">'+
-    '<td class="pxitem"><b>'+esc(it.size||it.name||'—')+'</b>'+
-      (it.name&&it.size?' <span class="pxnm">'+esc(it.name)+'</span>':'')+
-      (it.unit&&it.unit!=='pcs'?' <span class="pxnm">/'+esc(it.unit)+'</span>':'')+
-      (codes?'<small class="pxcodes">'+esc(codes)+'</small>':'')+
+    '<td class="pxitem"><div class="pxirow">'+
+      (rimg?'<img class="pxthumb" src="'+esc(rimg)+'" loading="lazy" onerror="this.style.visibility=\'hidden\'">':'<span class="pxthumb pxnoimg">▦</span>')+
+      '<div class="pxitxt"><b>'+esc(it.size||it.name||'—')+'</b>'+
+        (it.name&&it.size?' <span class="pxnm">'+esc(it.name)+'</span>':'')+
+        (it.unit&&it.unit!=='pcs'?' <span class="pxnm">/'+esc(it.unit)+'</span>':'')+
+        (codes?'<small class="pxcodes">'+esc(codes)+'</small>':'')+
+      '</div></div>'+
       '<button class="pxedit" data-i="'+esc(iid)+'" title="edit / delete this row">✎</button></td>'+
     tds+'<td class="pxaddc"></td><td class="pxbest">'+best+'</td></tr>';
 }
