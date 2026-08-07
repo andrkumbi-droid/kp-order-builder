@@ -267,6 +267,10 @@
   .pxtable td.pxitem .pxitxt{min-width:0}
   .pxtable td.pxitem .pxedit{position:absolute;top:3px;right:3px;background:transparent;border:none;color:var(--muted);font-size:11px;padding:2px;opacity:0}
   .pxtable td.pxitem:hover .pxedit{opacity:1;color:var(--accent)}
+  .pxtable td.pxitem .pxihide{position:absolute;top:3px;right:20px;background:transparent;border:none;color:var(--muted);font-size:11px;padding:2px;opacity:0}
+  .pxtable td.pxitem:hover .pxihide{opacity:1;color:var(--danger)}
+  .pxtable tr.pxhid td{opacity:.45}
+  .pxtable tr.pxhid td.pxitem .pxihide{opacity:1;color:var(--accent2)}
   .pxtable tr.pxcatrow td{background:#12161b;color:var(--accent);font-weight:700;letter-spacing:.7px;text-transform:uppercase;font-size:11px;position:sticky;left:0}
   .pxtable tbody tr:hover td:not(.pxitem){background:rgba(255,255,255,.03)}
   .pxtable th.pxv{min-width:86px}
@@ -1984,6 +1988,14 @@ function iList(){
   });
   return arr;
 }
+/* hidden rows (panels we don't buy right now) stay in the DB — they just drop out of the table */
+function iVisible(){ return iList().filter(function(x){ return pxShowHidden || !x.it.hidden; }); }
+function pxToggleHideItem(iid){
+  var it=pitems[iid]; if(!it) return;
+  var now=!it.hidden; it.hidden=now?true:null;
+  if(db) db.ref(OB+'/priceItems/'+iid+'/hidden').set(now?true:null);
+  openPrices();
+}
 function pxGet(it,sid){ var v=it&&it.px&&it.px[sid]; if(v==null||v==='') return '';
   if(typeof v==='object') return (v.u==null||v.u==='')?'':v.u; return v; }
 function pxTs(it,sid){ var v=it&&it.px&&it.px[sid]; return (v&&typeof v==='object'&&v.t)||0; }
@@ -2056,7 +2068,7 @@ function pxRowHtml(iid,it,vs){
   var codes=codesForSize(it.size);
   var srch=((it.cat||'')+' '+(it.size||'')+' '+(it.name||'')+' '+codes+' '+vs.filter(function(x){return pxGet(it,x.sid)!=='';}).map(function(x){return x.name;}).join(' ')).toLowerCase();
   var rimg=pxRowImg(it);
-  return '<tr data-i="'+esc(iid)+'" data-s="'+esc(srch)+'">'+
+  return '<tr data-i="'+esc(iid)+'"'+(it.hidden?' class="pxhid"':'')+' data-s="'+esc(srch)+'">'+
     '<td class="pxitem"><div class="pxirow">'+
       (rimg?'<img class="pxthumb" src="'+esc(rimg)+'" loading="lazy" onerror="this.style.visibility=\'hidden\'">':'<span class="pxthumb pxnoimg">▦</span>')+
       '<div class="pxitxt"><b>'+esc(it.size||it.name||'—')+'</b>'+
@@ -2064,7 +2076,8 @@ function pxRowHtml(iid,it,vs){
         (it.unit&&it.unit!=='pcs'?' <span class="pxnm">/'+esc(it.unit)+'</span>':'')+
         (codes?'<small class="pxcodes">'+esc(codes)+'</small>':'')+
       '</div></div>'+
-      '<button class="pxedit" data-i="'+esc(iid)+'" title="edit / delete this row">✎</button></td>'+
+      '<button class="pxedit" data-i="'+esc(iid)+'" title="edit / delete this row">✎</button>'+
+      '<button class="pxihide" data-hidei="'+esc(iid)+'" title="'+(it.hidden?'show this panel again':'hide this panel (prices are kept)')+'">'+(it.hidden?'👁':'✕')+'</button></td>'+
     tds+'<td class="pxaddc"></td><td class="pxbest">'+best+'</td></tr>';
 }
 function openPrices(){
@@ -2072,7 +2085,7 @@ function openPrices(){
   var box=el('priceBox'), ovl=el('priceOverlay');
   var old=box.querySelector('.pxscroll'), st=old?old.scrollTop:0, sl=old?old.scrollLeft:0;
   var term=(el('pxSearch')?el('pxSearch').value:'');
-  var vs=vVisible(), items=iList(), ncols=vs.length+3;
+  var vs=vVisible(), items=iVisible(), ncols=vs.length+3;
   var head='<tr><th class="pxcorner">Item · size</th>'+vs.map(vHeadHtml).join('')+
     '<th class="pxaddc"><button class="btn ghost" id="pxAddV" title="add a supplier column">＋</button></th>'+
     '<th class="pxbest">cheapest · dearest</th></tr>';
@@ -2083,6 +2096,7 @@ function openPrices(){
   });
   if(!items.length) body='<tr><td colspan="'+ncols+'" style="padding:22px;color:var(--muted)">No items yet — use ＋ item.</td></tr>';
   var hiddenOnes=vList().filter(function(x){ return x.v.hidden; });
+  var hiddenItems=iList().filter(function(x){ return x.it.hidden; });
   box.innerHTML=
     '<div class="pxhead">'+
       '<h3 style="margin:0">📊 Price comparison</h3>'+
@@ -2091,12 +2105,15 @@ function openPrices(){
       '<label class="pxhint" style="white-space:nowrap">USD→THB <input class="price" id="pxRate" type="number" step="0.1" value="'+esc(thbRate)+'"></label>'+
       '<button class="btn ghost'+(pxBaht?' on':'')+'" id="pxBahtT" title="show the THB price under each USD price">฿</button>'+
       '<button class="btn ghost'+(pxOnlyCur?' on':'')+'" id="pxCurT" title="show only suppliers marked as current">✓ current only</button>'+
-      '<button class="btn ghost'+(pxShowHidden?' on':'')+'" id="pxHidT" title="show the hidden suppliers again">👁 hidden ('+hiddenOnes.length+')</button>'+
+      '<button class="btn ghost'+(pxShowHidden?' on':'')+'" id="pxHidT" title="show the hidden suppliers + panels again">👁 hidden ('+(hiddenOnes.length+hiddenItems.length)+')</button>'+
       '<button class="btn" id="pxAddI">＋ item</button>'+
       '<button class="btn green" id="pxCsv">Export CSV</button>'+
       '<button class="btn" id="pxToProd">📋 Products →</button>'+
     '</div>'+
-    (hiddenOnes.length&&!pxShowHidden?'<div class="pxhidden">hidden: '+hiddenOnes.map(function(x){ return '<span class="pxchip" data-unhide="'+esc(x.sid)+'">'+esc(x.name)+' ↩</span>'; }).join('')+'</div>':'')+
+    ((hiddenOnes.length||hiddenItems.length)&&!pxShowHidden?'<div class="pxhidden">hidden: '+
+      hiddenOnes.map(function(x){ return '<span class="pxchip" data-unhide="'+esc(x.sid)+'">'+esc(x.name)+' ↩</span>'; }).join('')+
+      hiddenItems.map(function(x){ return '<span class="pxchip" data-unhidei="'+esc(x.iid)+'">▦ '+esc(x.it.size||x.it.name||x.iid)+' ↩</span>'; }).join('')+
+    '</div>':'')+
     '<div class="pxscroll"><table class="pxtable"><thead>'+head+'</thead><tbody>'+body+'</tbody></table></div>'+
     '<div class="pxhint" style="margin-top:6px">Green = cheapest, red = dearest (only among the suppliers you can see). Click a supplier name for company / contact / colour books, ✕ hides the column (prices stay saved). Type straight into a cell to change a price.</div>';
   ovl.classList.remove('hide');
@@ -2126,6 +2143,10 @@ function openPrices(){
       if(n){ e.preventDefault(); openVendorModal(n.getAttribute('data-sid')); return; }
       var ed=e.target.closest&&e.target.closest('.pxedit');
       if(ed){ e.preventDefault(); openItemModal(ed.getAttribute('data-i')); return; }
+      var ih=e.target.closest&&e.target.closest('[data-hidei]');
+      if(ih){ e.preventDefault(); pxToggleHideItem(ih.getAttribute('data-hidei')); return; }
+      var uni=e.target.closest&&e.target.closest('[data-unhidei]');
+      if(uni){ e.preventDefault(); pxToggleHideItem(uni.getAttribute('data-unhidei')); return; }
       var un=e.target.closest&&e.target.closest('[data-unhide]');
       if(un){ e.preventDefault(); pxToggleHide(un.getAttribute('data-unhide')); return; }
     });
@@ -2249,7 +2270,7 @@ function openItemModal(iid){
 function pxExportCsv(){
   var vs=vVisible(), rows=[];
   rows.push(['Category','Item / size','Unit'].concat(vs.map(function(x){ return x.name+' USD'; })).concat(['Cheapest','USD','Dearest','USD','Spread %']));
-  iList().forEach(function(x){
+  iVisible().forEach(function(x){
     var it=x.it, vals=[];
     var cells=vs.map(function(v){ var p=pxGet(it,v.sid); if(p!=='') vals.push(+p); return p===''?'':String(p).replace('.',','); });
     var lo=vals.length?Math.min.apply(null,vals):'', hi=vals.length?Math.max.apply(null,vals):'';
