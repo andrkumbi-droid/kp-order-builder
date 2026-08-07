@@ -300,74 +300,115 @@
   .pxtable .pxnone{color:var(--line)}
   .pxtable td.pxitem{position:relative}
 
-  /* ---- printable overview sheet (Import PI → print) ---- */
+  /* ---- print sheet = free canvas editor (drag / resize / layers, Canva-style) ---- */
   #printTitle{display:none}
-  #printSheet{position:fixed;inset:0;background:#525659;overflow:auto;z-index:60}
-  .psbar{position:sticky;top:0;z-index:2;display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:#1b1f24;border-bottom:1px solid #000;padding:10px 16px}
-  .psbar .btn{white-space:nowrap;flex:none}
-  .psbar .psbarnote{color:#9aa4af;font-size:12px;flex:1;min-width:200px}
+  #printSheet{position:fixed;inset:0;background:#4b5058;overflow:auto;z-index:60}
+  .psbars{position:sticky;top:0;z-index:5}
+  .psbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:#1b1f24;border-bottom:1px solid #000;padding:9px 14px}
+  .psbar .btn,.pssel .btn{white-space:nowrap;flex:none}
+  .psbar .btn:not(.primary),.pssel .btn{color:#e7ecf2;border-color:#3a434e;background:transparent}
+  .psbar .btn.on,.pssel .btn.on{border-color:var(--accent2);color:var(--accent2)}
+  .psfsval{color:#9aa4af;font-size:11px;min-width:36px;text-align:center}
+  .psbar .psgrp{display:flex;gap:5px;align-items:center;padding-left:9px;border-left:1px solid #3a434e}
+  .psbar .psgrp.first{padding-left:0;border-left:0}
+  .psbar .psbarnote{color:#9aa4af;font-size:12px;flex:1;min-width:170px}
   .psbar .btn.ghost{color:#e7ecf2;border-color:#3a434e}
-  .psbar .btn:not(.primary){color:#e7ecf2;border-color:#3a434e;background:transparent}
-  .psbar .btn.on{border-color:var(--accent2);color:var(--accent2)}
-  .psbar .psfsval{color:#9aa4af;font-size:11px;min-width:34px;text-align:center}
-  .psbar .psgrp{display:flex;gap:4px;align-items:center}
-  /* the preview IS the paper: A4 incl. its 12mm print margins, so what you see is what prints */
-  .pspage{--fs:1;--cols:2;--phw:104px;width:210mm;min-height:297mm;margin:18px auto 40px;background:#fff;color:#111;padding:12mm;box-shadow:0 8px 30px rgba(0,0,0,.4)}
-  .pspage.land{width:297mm;min-height:210mm;--cols:3;--phw:80px}
-  .pspage.psbold .psmodel,.pspage.psbold .pscname,.pspage.psbold .pscname small,.pspage.psbold .psaccs span,.pspage.psbold .psnote{font-weight:700;color:#111}
-  .pshead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:16px}
-  .pshead .pst{font-size:calc(22px*var(--fs,1));font-weight:800;letter-spacing:.3px}
-  .pshead .pssub{font-size:12px;color:#555;margin-top:3px}
-  .pshead .psstat{text-align:right;font-size:12px;color:#333;white-space:nowrap;line-height:1.5}
-  .pshead .psstat b{font-size:16px;color:#111}
-  .psgrid{display:grid;grid-template-columns:repeat(var(--cols,2),minmax(0,1fr));gap:12px}
-  .pscard{border:1px solid #cfd4da;border-radius:8px;padding:10px;display:grid;grid-template-columns:var(--phw,104px) 1fr;gap:12px;break-inside:avoid;page-break-inside:avoid;position:relative}
-  /* per-card screen-only controls: move / remove (never printed) */
-  .psctl{position:absolute;top:5px;right:5px;display:flex;gap:3px;opacity:0;transition:.12s}
-  .pscard:hover .psctl{opacity:1}
-  .psctl button{width:22px;height:22px;border-radius:6px;border:1px solid #d4d9de;background:#fff;color:#666;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
-  .psctl button:hover{border-color:#3b82f6;color:#111}
-  .psctl .psrm:hover{border-color:#ef4444;color:#ef4444}
+  .pssel{display:flex;gap:5px;align-items:center;flex-wrap:wrap;background:#141c28;border-bottom:1px solid #000;padding:7px 14px}
+  .pssel .lbl{color:#7f8ea0;font-size:10px;text-transform:uppercase;letter-spacing:1.3px;font-weight:700;margin-right:4px}
+
+  /* pages */
+  #psDoc{padding:22px 0 70px;display:flex;flex-direction:column;align-items:center;gap:34px}
+  .pswrap{position:relative}
+  .pswrap .pgnum{position:absolute;top:-17px;left:1px;font-size:11px;color:#c3cbd4}
+  .pswrap .pgdel{position:absolute;top:-20px;right:0;background:transparent;border:1px solid #6b7480;color:#c3cbd4;border-radius:6px;font-size:10px;padding:1px 8px;cursor:pointer}
+  .pswrap .pgdel:hover{border-color:#ef4444;color:#ffb4b4}
+  .pspage{--fs:1;--phb:104px;--phw:calc(var(--phb)*var(--fs));position:relative;width:210mm;height:297mm;background:#fff;color:#111;box-shadow:0 8px 30px rgba(0,0,0,.45);overflow:hidden}
+  .pspage.land{width:297mm;height:210mm}
+  .pscanvas{position:absolute;left:12mm;top:12mm;right:12mm;bottom:12mm}
+  .psgridbg{position:absolute;inset:0;pointer-events:none;display:none;background-image:linear-gradient(to right,rgba(59,130,246,.16) 1px,transparent 1px),linear-gradient(to bottom,rgba(59,130,246,.16) 1px,transparent 1px);background-size:10mm 10mm}
+  .pspage.showgrid .psgridbg{display:block}
+  .psguide{position:absolute;background:#f43f5e;pointer-events:none;z-index:9999}
+  .psguide.v{width:1px;top:-10px;bottom:-10px}
+  .psguide.h{height:1px;left:-10px;right:-10px}
+  .psempty{position:absolute;left:0;right:0;top:40%;text-align:center;color:#9aa4af;font-size:13px;pointer-events:none}
+
+  /* elements on the canvas */
+  .pel{position:absolute;box-sizing:border-box}
+  .pel:not(.editing){cursor:move}
+  .pel.sel{outline:1.5px solid #3b82f6;outline-offset:1px}
+  .pel.editing{outline:1.5px dashed #e0b400;outline-offset:1px;cursor:auto}
+  .pel .pelin{width:100%;height:100%;box-sizing:border-box;overflow:hidden}
+  .pel:not(.editing) .pelin{user-select:none}
+  .pelh{display:none}
+  .pel.sel .pelh{display:block}
+  .pelh i{position:absolute;width:10px;height:10px;margin:-5px 0 0 -5px;background:#fff;border:1.5px solid #3b82f6;border-radius:2px;z-index:3}
+  .pelh i[data-h=nw]{left:0;top:0;cursor:nwse-resize}
+  .pelh i[data-h=n]{left:50%;top:0;cursor:ns-resize}
+  .pelh i[data-h=ne]{left:100%;top:0;cursor:nesw-resize}
+  .pelh i[data-h=e]{left:100%;top:50%;cursor:ew-resize}
+  .pelh i[data-h=se]{left:100%;top:100%;cursor:nwse-resize}
+  .pelh i[data-h=s]{left:50%;top:100%;cursor:ns-resize}
+  .pelh i[data-h=sw]{left:0;top:100%;cursor:nesw-resize}
+  .pelh i[data-h=w]{left:0;top:50%;cursor:ew-resize}
+  .pelrot{position:absolute;left:50%;top:-26px;width:18px;height:18px;margin-left:-9px;border-radius:50%;background:#fff;border:1.5px solid #3b82f6;color:#3b82f6;font-size:10px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:grab;z-index:3}
+
+  /* card element (same look as before, now a free box) */
+  .pscard{border:1px solid #cfd4da;border-radius:8px;padding:10px;display:grid;grid-template-columns:var(--phw,104px) 1fr;gap:12px;background:#fff}
   .pscard .psphoto{width:var(--phw,104px);height:var(--phw,104px);object-fit:cover;border-radius:6px;background:#eef0f2;border:1px solid #e3e6ea}
   .pscard .psinfo{min-width:0}
-  .pscard .pscode{font-size:calc(19px*var(--fs,1));font-weight:800;letter-spacing:.4px;line-height:1}
+  .pscard .pscode{font-size:calc(19px*var(--fs,1));font-weight:800;letter-spacing:.4px;line-height:1.1}
   .pscard .psmodel{font-size:calc(12px*var(--fs,1));color:#555;margin:3px 0 7px}
   .pscard .pscolor{display:flex;gap:8px;align-items:center}
-  .pscard .pscolor img{width:36px;height:36px;object-fit:cover;border-radius:5px;border:1px solid #e3e6ea;background:#eef0f2;flex:none}
+  .pscard .pscolor img{width:calc(36px*var(--fs,1));height:calc(36px*var(--fs,1));object-fit:cover;border-radius:5px;border:1px solid #e3e6ea;background:#eef0f2;flex:none}
   .pscard .pscname{font-size:calc(12px*var(--fs,1));font-weight:700;line-height:1.25;min-width:0}
   .pscard .pscname small{display:block;font-weight:400;color:#666}
   .pscard .psqty{margin-top:8px;display:inline-block;background:#111;color:#fff;font-weight:800;font-size:calc(14px*var(--fs,1));padding:3px 12px;border-radius:20px}
   .pscard .psaccs{margin-top:8px;display:flex;flex-wrap:wrap;gap:5px}
-  .pscard .psaccs span{font-size:calc(11px*var(--fs,1));background:#f0f2f4;border:1px solid #e0e4e8;border-radius:5px;padding:2px 7px;color:#333}
-  /* free text block on the sheet */
-  .psnote{grid-column:1/-1;position:relative;border:1px dashed #cfd4da;border-radius:8px;padding:10px 12px;font-size:calc(13px*var(--fs,1));line-height:1.5;break-inside:avoid;page-break-inside:avoid}
-  .psnote .psntxt{outline:none;min-height:20px}
-  .pscard .psaccs b{color:#111}
-  .psempty{padding:40px;text-align:center;color:#777}
-  .psfoot{margin-top:16px;border-top:1px solid #ccc;padding-top:8px;font-size:11px;color:#888;display:flex;justify-content:space-between}
+  .pscard .psaccs>.psacc{font-size:calc(11px*var(--fs,1));background:#f0f2f4;border:1px solid #e0e4e8;border-radius:5px;padding:2px 7px;color:#333}
+  .pscard .psaccs>.psacc b{color:#111}
+  .pspage.psbold .psmodel,.pspage.psbold .pscname,.pspage.psbold .pscname small,.pspage.psbold .psaccs>.psacc,.pspage.psbold .psntxt,
+  .pel.elbold .psmodel,.pel.elbold .pscname,.pel.elbold .pscname small,.pel.elbold .psaccs>.psacc,.pel.elbold .psntxt{font-weight:700;color:#111}
+
+  /* heading element */
+  .pshead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;border-bottom:2px solid #111;padding-bottom:8px}
+  .pshead .pst{font-size:calc(22px*var(--fs,1));font-weight:800;letter-spacing:.3px}
+  .pshead .pssub{font-size:calc(12px*var(--fs,1));color:#555;margin-top:3px}
+  .pshead .psstat{text-align:right;font-size:calc(12px*var(--fs,1));color:#333;white-space:nowrap;line-height:1.5}
+  .pshead .psstat b{font-size:calc(16px*var(--fs,1));color:#111}
   .pshead .pshl{min-width:0}
   .pshead .psctn{font-weight:800;color:#111}
   .pshead .psdate{color:#888}
-  /* editable preview fields — click to correct anything before printing */
-  .pspage [contenteditable]{cursor:text;outline:none}
-  .pspage [contenteditable]:hover{background:#fff6d6;border-radius:3px}
-  .pspage [contenteditable]:focus{background:#fff6d6;box-shadow:inset 0 0 0 1px #e0b400;border-radius:3px}
-  .pspage [contenteditable]:empty:before{content:attr(data-ph);color:#c2c7cd;font-weight:400}
+
+  /* free text + image elements */
+  .psntxt{padding:5px 7px;font-size:calc(13px*var(--fs,1));line-height:1.5;outline:none;height:100%;box-sizing:border-box}
+  .pselimg{display:flex;align-items:center;justify-content:center;background:#f5f7f9;border:1px dashed #d5dae0;border-radius:8px}
+  .pselimg.has{background:none;border:0}
+  .pselimg img{max-width:100%;max-height:100%;object-fit:contain}
+  .pselimg .phold{color:#aab2bb;font-size:12px}
+
+  /* text is only editable after a double-click (single click selects the box) */
+  .pel.editing [contenteditable]{cursor:text}
+  .pel.editing [contenteditable]:hover{background:#fff6d6;border-radius:3px}
+  .pel.editing [contenteditable]:focus{background:#fff6d6;box-shadow:inset 0 0 0 1px #e0b400;border-radius:3px}
+  .pscanvas [contenteditable]:empty:before{content:attr(data-ph);color:#c9ced5;font-weight:400}
   @media print{
     body{background:#fff}
     body>*{display:none!important}
     #printSheet{display:block!important;position:static;background:#fff;overflow:visible}
-    #printSheet .psbar{display:none!important}
-    .pspage{width:auto;min-height:0;max-width:none;margin:0;padding:0;box-shadow:none;zoom:1!important}
-    .pspage [contenteditable]{background:none!important;box-shadow:none!important}
-    .pspage [contenteditable]:empty:before{content:''!important}
-    .psctl{display:none!important}
+    .psbars,.psbar,.pssel{display:none!important}
+    #psDoc{display:block;padding:0;gap:0}
+    .pswrap{position:static}
+    .pgnum,.pgdel,.psgridbg,.psguide,.psempty,.pelh,.pelrot{display:none!important}
+    .pspage{margin:0;box-shadow:none;zoom:1!important;break-after:page;page-break-after:always}
+    .pswrap:last-child .pspage{break-after:auto;page-break-after:auto}
+    .pel.sel,.pel.editing{outline:none!important}
+    .pscanvas [contenteditable]{background:none!important;box-shadow:none!important}
+    .pscanvas [contenteditable]:empty:before{content:''!important}
+    .pel-text:has(.psntxt:empty){display:none}
     .pscard:has(.psqn:empty) .psqty{display:none}
-    .psnote{border-color:#bbb}
-    .psnote:has(.psntxt:empty){display:none}
-    .psgrid{gap:8px}
     .pscard{border-color:#bbb}
-    @page{margin:12mm}
+    .pselimg{border:0}
+    @page{margin:0}
   }
 </style>
 </head>
@@ -480,24 +521,47 @@
 <div class="ov hide" id="priceOverlay">
   <div class="modal wide" id="priceBox"></div>
 </div>
-<!-- printable overview sheet (what you print / save as PDF) -->
+<!-- print sheet = free canvas editor (what you print / save as PDF) -->
 <div class="hide" id="printSheet">
-  <div class="psbar noprint">
-    <button class="btn primary" id="psPrint">🖨️ Print / Save PDF</button>
-    <button class="btn" id="psAdd">＋ Add card</button>
-    <button class="btn" id="psText">＋ Text</button>
-    <span class="psgrp">
-      <button class="btn" id="psOrient">⬒ Landscape</button>
-      <button class="btn" id="psCols" title="cards per row">▦ 2 per row</button>
-      <button class="btn" id="psFsMinus" title="smaller text">A−</button>
-      <span class="psfsval" id="psFsVal">100%</span>
-      <button class="btn" id="psFsPlus" title="bigger text">A+</button>
-      <button class="btn" id="psBold" title="bold details"><b>B</b></button>
-    </span>
-    <span class="psbarnote">Click any field (supplier, container no., code, colour, qty…) to edit it. Hover a card: ◀ ▶ move it, ✕ removes it (print only — the order itself is untouched). Use your browser's “Save as PDF” to keep a file.</span>
-    <button class="btn ghost" id="psClose">✕ Close</button>
+  <div class="psbars noprint">
+    <div class="psbar">
+      <button class="btn primary" id="psPrint">🖨️ Print / Save PDF</button>
+      <span class="psgrp first">
+        <button class="btn" id="psAdd" title="add an empty product card">＋ Card</button>
+        <button class="btn" id="psText" title="add a free text box">＋ Text</button>
+        <button class="btn" id="psImg" title="place a photo on the sheet">＋ Image</button>
+        <input type="file" accept="image/*" id="psImgFile" style="display:none">
+        <button class="btn" id="psAddPage" title="add another sheet">＋ Page</button>
+      </span>
+      <span class="psgrp">
+        <button class="btn" id="psOrient">⬒ Landscape</button>
+        <button class="btn" id="psCols" title="cards per row when auto-arranging">▦ auto (2)</button>
+        <button class="btn" id="psArrange" title="lay everything out in a clean grid again">⟲ Auto-arrange</button>
+        <button class="btn" id="psGridT" title="alignment grid (screen only)">⊞ Grid</button>
+      </span>
+      <span class="psgrp">
+        <button class="btn" id="psFsMinus" title="smaller text on the whole sheet">A−</button>
+        <span class="psfsval" id="psFsVal">100%</span>
+        <button class="btn" id="psFsPlus" title="bigger text on the whole sheet">A+</button>
+        <button class="btn" id="psBold" title="bold details"><b>B</b></button>
+      </span>
+      <span class="psbarnote">Click = select · drag = move · corner handles = resize · double-click = edit text · Del = remove</span>
+      <button class="btn ghost" id="psClose">✕ Close</button>
+    </div>
+    <div class="pssel hide" id="psSelBar">
+      <span class="lbl">Selected</span>
+      <button class="btn" id="psElFsM" title="smaller">A−</button>
+      <span class="psfsval" id="psElFs">100%</span>
+      <button class="btn" id="psElFsP" title="bigger">A+</button>
+      <button class="btn" id="psElBold" title="bold"><b>B</b></button>
+      <button class="btn" id="psElDup" title="duplicate (Ctrl+D)">⧉ Duplicate</button>
+      <button class="btn" id="psElFront" title="bring to front">⬆ Front</button>
+      <button class="btn" id="psElBack" title="send to back">⬇ Back</button>
+      <button class="btn" id="psElReset" title="straighten (0°)">⟲ 0°</button>
+      <button class="btn" id="psElDel" style="color:#ffb4b4" title="remove (Del)">🗑 Delete</button>
+    </div>
   </div>
-  <div class="pspage" id="psPage"></div>
+  <div id="psDoc"></div>
 </div>
 
 <script src="https://accounts.google.com/gsi/client" async></script>
@@ -1000,7 +1064,7 @@ function renderCards(){
   el('btnAddLine').textContent = editingIndex>=0 ? 'Update line ↵' : 'Add to order ↵';
 }
 
-/* ---------- printable overview sheet (Import PI → print) ---------- */
+/* ---------- print sheet = a free canvas you arrange before printing ---------- */
 /* best image for a line: line's own → product catalog → website by code */
 function lnImg(ln,field){
   if(ln[field]) return ln[field];
@@ -1015,152 +1079,492 @@ function psSupplier(panels){
   panels.forEach(function(ln){ var s=lnField(ln,'supplier'); if(!s) return; counts[s]=(counts[s]||0)+1; if(counts[s]>bestN){ bestN=counts[s]; best=s; } });
   return best;
 }
-function buildPrintSheet(){
-  var lines=order.lines||[];
-  var panels=lines.filter(function(l){ return !l._accOnly; });
-  var totPcs=0; lines.forEach(function(l){ var q=parseInt(l.qty,10); if(!isNaN(q)) totPcs+=q; });
-  var supName=(order.printSupplier!=null&&order.printSupplier!=='')?order.printSupplier:psSupplier(panels);
-  supName=String(supName||'').replace(/&#\d+;?/g,' ').replace(/[\r\n\t]+/g,' ').replace(/\s{2,}/g,' ').trim(); // drop newline/entity junk from PI cells
-  var ctn=order.containerNo||'';
-  // heading = supplier name + container no; both editable (fix by hand if the parse is off)
-  var head='<div class="pshead"><div class="pshl">'+
-    '<div class="pst" contenteditable="true" data-hk="supplier" data-ph="Supplier name">'+esc(supName||'')+'</div>'+
-    '<div class="pssub">Container&nbsp;No.&nbsp;<span class="psctn" contenteditable="true" data-hk="container" data-ph="…">'+esc(ctn)+'</span>'+
-      '<span class="psdate"> · '+new Date().toLocaleDateString()+'</span></div>'+
-    '</div>'+
-    '<div class="psstat"><b>'+panels.length+'</b> models<br>'+totPcs.toLocaleString()+' pcs total</div></div>';
-  if(!panels.length) return head+'<div class="psempty">No items yet. Use <b>Import PI</b> (or build an order), then print.</div>';
-  var cards=panels.map(function(ln){
-    var photo=lnImg(ln,'prodImg'), sw=lnImg(ln,'colorImg'), bk=lnImg(ln,'bookImg');
-    var book=lnField(ln,'book'), page=ln.page||lnField(ln,'page'), num=ln.number||lnField(ln,'number');
-    var material=ln.material||lnField(ln,'material'), size=ln.size||lnField(ln,'size');
-    var model=[material,size].filter(Boolean).join(' · ');
-    var colTxt=book||''; var colSub=[page&&('Page '+page),num].filter(Boolean).join(' · ');
-    var accHtml=(ln.accs||[]).map(function(a){ return '<span contenteditable="true"><b>'+esc(a.code)+'</b> '+esc(a.qty)+(a.unit?(' '+esc(a.unit)):' pcs')+'</span>'; }).join('');
-    return '<div class="pscard">'+
-      '<div class="psctl"><button class="psmv" data-mv="-1" title="move up / left">◀</button><button class="psmv" data-mv="1" title="move down / right">▶</button><button class="psrm" title="remove this card from the sheet (order stays)">✕</button></div>'+
-      '<img class="psphoto" src="'+esc(photo)+'" onerror="this.style.visibility=\'hidden\'">'+
-      '<div class="psinfo">'+
-        '<div class="pscode" contenteditable="true" data-ph="Code">'+esc(ln.code||'')+'</div>'+
-        '<div class="psmodel" contenteditable="true" data-ph="material · size">'+esc(model)+'</div>'+
-        '<div class="pscolor">'+
-          (sw?'<img src="'+esc(sw)+'" onerror="this.style.display=\'none\'">':'')+
-          (bk?'<img src="'+esc(bk)+'" onerror="this.style.display=\'none\'">':'')+
-          '<span class="pscname"><span contenteditable="true" data-ph="colour / book">'+esc(colTxt)+'</span><small contenteditable="true" data-ph="page · no.">'+esc(colSub)+'</small></span>'+
-        '</div>'+
-        '<span class="psqty"><span class="psqn" contenteditable="true">'+esc(ln.qty||0)+'</span> pcs</span>'+
-        '<div class="psaccs">'+accHtml+'</div>'+
-      '</div>'+
-    '</div>';
-  }).join('');
-  return head+'<div class="psgrid">'+cards+'</div>'+
-    '<div class="psfoot"><span>KP Order Builder</span><span>'+panels.length+' models · '+totPcs.toLocaleString()+' pcs</span></div>';
-}
-function openPrintSheet(){
-  el('psPage').innerHTML=buildPrintSheet();
-  el('printSheet').classList.remove('hide');
-  psApplyPrefs();
-  // remember hand-typed heading (supplier + container no) for this order
-  Array.prototype.forEach.call(el('psPage').querySelectorAll('[data-hk]'),function(node){
-    node.addEventListener('blur',function(){
-      var k=node.getAttribute('data-hk'), v=node.textContent.trim();
-      if(k==='supplier') order.printSupplier=v; else if(k==='container') order.containerNo=v;
-      saveLocal();
-    });
-  });
-  var pg=el('psPage');
-  if(!pg._psWired){ pg._psWired=true; // screen-only card tools: ◀ ▶ move, ✕ remove — the order itself is untouched
-    pg.addEventListener('click',function(e){
-      var mv=e.target.closest&&e.target.closest('.psmv');
-      if(mv){ var c=mv.closest('.pscard,.psnote'), d=+mv.getAttribute('data-mv');
-        if(d<0&&c.previousElementSibling) c.parentNode.insertBefore(c,c.previousElementSibling);
-        else if(d>0&&c.nextElementSibling) c.parentNode.insertBefore(c.nextElementSibling,c);
-        return; }
-      var rm=e.target.closest&&e.target.closest('.psrm');
-      if(rm){ rm.closest('.pscard,.psnote').remove(); psRecalc(); return; }
-    });
-    pg.addEventListener('blur',function(e){ if(e.target.classList&&e.target.classList.contains('psqn')) psRecalc(); },true);
-  }
-}
-/* header + footer totals follow what's actually on the sheet */
-function psRecalc(){
-  var pg=el('psPage'), n=pg.querySelectorAll('.pscard').length, tot=0;
-  Array.prototype.forEach.call(pg.querySelectorAll('.psqn'),function(x){ var q=parseInt(String(x.textContent).replace(/[^\d]/g,''),10); if(!isNaN(q)) tot+=q; });
-  var st=pg.querySelector('.psstat'); if(st) st.innerHTML='<b>'+n+'</b> models<br>'+tot.toLocaleString()+' pcs total';
-  var ft=pg.querySelector('.psfoot span:last-child'); if(ft) ft.textContent=n+' models · '+tot.toLocaleString()+' pcs';
-}
-/* blank editable card (e.g. a model the PI missed) */
-function psAddCard(){
-  var pg=el('psPage'), grid=pg.querySelector('.psgrid');
-  if(!grid){ var em=pg.querySelector('.psempty'); if(em) em.remove();
-    grid=document.createElement('div'); grid.className='psgrid'; pg.appendChild(grid); }
-  var d=document.createElement('div'); d.className='pscard';
-  d.innerHTML='<div class="psctl"><button class="psmv" data-mv="-1" title="move up / left">◀</button><button class="psmv" data-mv="1" title="move down / right">▶</button><button class="psrm" title="remove this card from the sheet (order stays)">✕</button></div>'+
-    '<img class="psphoto" style="visibility:hidden">'+
-    '<div class="psinfo">'+
-      '<div class="pscode" contenteditable="true" data-ph="Code"></div>'+
-      '<div class="psmodel" contenteditable="true" data-ph="material · size"></div>'+
-      '<div class="pscolor"><span class="pscname"><span contenteditable="true" data-ph="colour / book"></span><small contenteditable="true" data-ph="page · no."></small></span></div>'+
-      '<span class="psqty"><span class="psqn" contenteditable="true" data-ph="qty"></span> pcs</span>'+
-      '<div class="psaccs"><span contenteditable="true" data-ph="+ accessory"></span></div>'+
-    '</div>';
-  grid.appendChild(d); psRecalc();
-  var c=d.querySelector('.pscode'); if(c) c.focus();
-}
-/* sheet layout prefs: orientation, text size, bold — kept in localStorage, applied to screen AND print */
-var psPrefs={orient:'portrait',fs:1,bold:false,cols:0}; // cols 0 = auto (2 portrait / 3 landscape)
+
+var PPMM=96/25.4;                  // CSS px per millimetre
+var PS_PHB={1:130,2:104,3:80};     // photo size per cards-per-row
+var psSheet=null, psSelId=null, psZTop=1, psZoomF=1, psIdN=0, psDragging=null;
+
+/* sheet prefs (orientation, text size, bold, cards-per-row, grid) — kept in localStorage */
+var psPrefs={orient:'portrait',fs:1,bold:false,cols:0,grid:false};
 try{ var _pp=JSON.parse(localStorage.getItem('kp-ob-psprefs')||'{}');
   if(_pp.orient==='landscape') psPrefs.orient='landscape';
   if(_pp.fs>=0.7&&_pp.fs<=1.8) psPrefs.fs=_pp.fs;
-  psPrefs.bold=!!_pp.bold;
+  psPrefs.bold=!!_pp.bold; psPrefs.grid=!!_pp.grid;
   if(_pp.cols>=1&&_pp.cols<=3) psPrefs.cols=_pp.cols|0;
 }catch(e){}
-var PS_PHW={1:'130px',2:'104px',3:'80px'}; // photo size follows how wide a card can be
+
+function psNewId(){ return 'e'+Date.now().toString(36)+(psIdN++); }
+function psPageMM(){ return psPrefs.orient==='landscape'?{w:297,h:210}:{w:210,h:297}; }
+function psCanvasPx(){ var m=psPageMM(); return {w:Math.round((m.w-24)*PPMM), h:Math.round((m.h-24)*PPMM)}; }
+function psColsN(){ return psPrefs.cols||(psPrefs.orient==='landscape'?3:2); }
+function psAllEls(){ var a=[]; if(psSheet) psSheet.pages.forEach(function(p){ a=a.concat(p.els||[]); }); return a; }
+function psFind(id){ var r=null; if(!psSheet||!id) return null;
+  psSheet.pages.forEach(function(p,pi){ (p.els||[]).forEach(function(e,ei){ if(e.id===id) r={e:e,pi:pi,ei:ei}; }); });
+  return r; }
+function psGet(id){ var f=psFind(id); return f&&f.e; }
+function psNode(id){ return document.querySelector('#psDoc .pel[data-id="'+id+'"]'); }
+
+/* ----- build elements out of the current order ----- */
+function psElsFromOrder(){
+  return (order.lines||[]).filter(function(l){ return !l._accOnly; }).map(function(ln){
+    var book=lnField(ln,'book'), page=ln.page||lnField(ln,'page'), num=ln.number||lnField(ln,'number');
+    var material=ln.material||lnField(ln,'material'), size=ln.size||lnField(ln,'size');
+    return { id:psNewId(), t:'card', x:0,y:0,w:0,h:0,r:0,z:0,fs:1,bold:false,
+      code:ln.code||'', model:[material,size].filter(Boolean).join(' · '),
+      colTxt:book||'', colSub:[page&&('Page '+page),num].filter(Boolean).join(' · '),
+      qty:String(ln.qty||''),
+      accs:(ln.accs||[]).map(function(a){ return {c:a.code||'', q:String(a.qty||''), u:a.unit||'pcs'}; }),
+      photo:lnImg(ln,'prodImg'), sw:lnImg(ln,'colorImg'), bk:lnImg(ln,'bookImg') };
+  });
+}
+function psHeadEl(){
+  var panels=(order.lines||[]).filter(function(l){ return !l._accOnly; });
+  var sup=(order.printSupplier!=null&&order.printSupplier!=='')?order.printSupplier:psSupplier(panels);
+  sup=String(sup||'').replace(/&#\d+;?/g,' ').replace(/[\r\n\t]+/g,' ').replace(/\s{2,}/g,' ').trim(); // drop PI cell junk
+  return { id:psNewId(), t:'head', x:0,y:0,w:0,h:0,r:0,z:1,fs:1,bold:false,
+    sup:sup, ctn:order.containerNo||'', date:new Date().toLocaleDateString() };
+}
+/* signature of the order — when it changes, the sheet is rebuilt instead of restored */
+function psSig(){ return (order.lines||[]).map(function(l){ return (l.code||'')+(l._accOnly?'#a':'#p'); }).join('|'); }
+
+/* ----- element HTML ----- */
+function psHandles(){
+  return '<div class="pelh">'+['nw','n','ne','e','se','s','sw','w'].map(function(h){ return '<i data-h="'+h+'"></i>'; }).join('')+
+    '<div class="pelrot" title="drag to rotate">⟳</div></div>';
+}
+function psAccHtml(e){
+  return (e.accs||[]).map(function(a,i){
+    return '<span class="psacc"><b contenteditable="true" data-f="accc" data-ai="'+i+'" data-ph="code">'+esc(a.c||'')+'</b> '+
+      '<span contenteditable="true" data-f="accq" data-ai="'+i+'" data-ph="qty">'+esc(a.q||'')+'</span> '+esc(a.u||'pcs')+'</span>';
+  }).join('');
+}
+function psInner(e){
+  if(e.t==='card'){
+    return '<div class="pelin pscard">'+
+      (e.photo?'<img class="psphoto" src="'+esc(e.photo)+'" onerror="this.style.visibility=\'hidden\'">':'<img class="psphoto" style="visibility:hidden">')+
+      '<div class="psinfo">'+
+        '<div class="pscode" contenteditable="true" data-f="code" data-ph="Code">'+esc(e.code||'')+'</div>'+
+        '<div class="psmodel" contenteditable="true" data-f="model" data-ph="material · size">'+esc(e.model||'')+'</div>'+
+        '<div class="pscolor">'+
+          (e.sw?'<img src="'+esc(e.sw)+'" onerror="this.style.display=\'none\'">':'')+
+          (e.bk?'<img src="'+esc(e.bk)+'" onerror="this.style.display=\'none\'">':'')+
+          '<span class="pscname"><span contenteditable="true" data-f="colTxt" data-ph="colour / book">'+esc(e.colTxt||'')+'</span>'+
+          '<small contenteditable="true" data-f="colSub" data-ph="page · no.">'+esc(e.colSub||'')+'</small></span>'+
+        '</div>'+
+        '<span class="psqty"><span class="psqn" contenteditable="true" data-f="qty" data-ph="qty">'+esc(e.qty||'')+'</span> pcs</span>'+
+        '<div class="psaccs">'+psAccHtml(e)+'</div>'+
+      '</div></div>';
+  }
+  if(e.t==='head'){
+    return '<div class="pelin pshead"><div class="pshl">'+
+      '<div class="pst" contenteditable="true" data-f="sup" data-ph="Supplier name">'+esc(e.sup||'')+'</div>'+
+      '<div class="pssub">Container&nbsp;No.&nbsp;<span class="psctn" contenteditable="true" data-f="ctn" data-ph="…">'+esc(e.ctn||'')+'</span>'+
+        '<span class="psdate"> · '+esc(e.date||'')+'</span></div></div>'+
+      '<div class="psstat"></div></div>';
+  }
+  if(e.t==='img'){
+    return '<div class="pelin pselimg'+(e.src?' has':'')+'">'+(e.src?'<img src="'+esc(e.src)+'">':'<span class="phold">no photo</span>')+'</div>';
+  }
+  return '<div class="pelin psntxt" contenteditable="true" data-f="html" data-ph="Type any text — a note to the supplier, packing remark…">'+(e.html||'')+'</div>';
+}
+function psElStyle(e){
+  return 'left:'+Math.round(e.x)+'px;top:'+Math.round(e.y)+'px;width:'+Math.round(e.w)+'px;'+
+    (e.h?('height:'+Math.round(e.h)+'px;'):'height:auto;')+'z-index:'+(e.z||1)+';'+
+    (e.r?('transform:rotate('+e.r+'deg);'):'')+((e.fs&&e.fs!==1)?('--fs:'+e.fs+';'):'');
+}
+function psElHtml(e){
+  return '<div class="pel pel-'+e.t+(e.bold?' elbold':'')+(e.id===psSelId?' sel':'')+'" data-id="'+e.id+'" style="'+psElStyle(e)+'">'+
+    psInner(e)+psHandles()+'</div>';
+}
+function psApplyElStyle(e){ var n=psNode(e.id); if(n) n.setAttribute('style',psElStyle(e)); }
+
+/* ----- render ----- */
+function psRender(){
+  var doc=el('psDoc'); if(!doc||!psSheet) return;
+  var cls=(psPrefs.orient==='landscape'?' land':'')+(psPrefs.bold?' psbold':'')+(psPrefs.grid?' showgrid':'');
+  var nCards=psAllEls().filter(function(e){ return e.t==='card'; }).length;
+  doc.innerHTML=psSheet.pages.map(function(pg,i){
+    return '<div class="pswrap">'+
+      '<span class="pgnum">Page '+(i+1)+' / '+psSheet.pages.length+'</span>'+
+      (psSheet.pages.length>1?'<button class="pgdel" data-delp="'+i+'" title="delete this page">✕ page</button>':'')+
+      '<div class="pspage'+cls+'" data-p="'+i+'" style="--fs:'+psPrefs.fs+';--phb:'+PS_PHB[psColsN()]+'px">'+
+        '<div class="pscanvas" data-p="'+i+'">'+
+          '<div class="psgridbg"></div>'+
+          (pg.els||[]).map(psElHtml).join('')+
+          (!nCards&&!i?'<div class="psempty">Empty sheet — use <b>Import PI</b> or <b>＋ Card</b>, then drag things where you want them.</div>':'')+
+          '<div class="psguide v hide"></div><div class="psguide h hide"></div>'+
+        '</div></div></div>';
+  }).join('');
+  psRecalc(); psFit(); psSelUI();
+}
+/* elements created with h=0 are measured once, then keep an explicit height */
+function psMeasure(){
+  var doc=el('psDoc'); if(!doc||!psSheet) return;
+  var pending=psAllEls().filter(function(e){ return !e.h; }); if(!pending.length) return;
+  Array.prototype.forEach.call(doc.querySelectorAll('.pspage'),function(p){ p.style.removeProperty('zoom'); }); // measure at 1:1
+  pending.forEach(function(e){ var n=psNode(e.id); if(n) e.h=Math.ceil(n.getBoundingClientRect().height)||120; });
+  psFit();
+}
+/* the heading's totals always follow what is actually on the sheet */
+function psRecalc(){
+  if(!psSheet) return;
+  var n=0, tot=0;
+  psAllEls().forEach(function(e){
+    if(e.t!=='card') return; n++;
+    var q=parseInt(String(e.qty||'').replace(/[^\d]/g,''),10); if(!isNaN(q)) tot+=q;
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('#psDoc .psstat'),function(s){
+    s.innerHTML='<b>'+n+'</b> models<br>'+tot.toLocaleString()+' pcs total';
+  });
+}
+function psSave(){ if(!psSheet) return; order.sheet=psSheet; saveLocal(); }
+function psSaveLater(){ clearTimeout(psSave._t); psSave._t=setTimeout(psSave,400); }
+
+/* ----- auto-arrange: lay every element out in a clean grid, flowing onto more pages ----- */
+function psAutoArrange(){
+  if(!psSheet) return;
+  var all=psAllEls();
+  var head=all.filter(function(e){ return e.t==='head'; });
+  var rest=all.filter(function(e){ return e.t!=='head'; });
+  var c=psCanvasPx(), cols=psColsN(), gap=12;
+  var colW=Math.floor((c.w-gap*(cols-1))/cols);
+  head.forEach(function(e){ e.x=0; e.y=0; e.w=c.w; e.h=0; e.r=0; e.z=1; });
+  rest.forEach(function(e){ e.x=0; e.r=0; e.w=(e.t==='card'?colW:(e.t==='img'?Math.min(colW,220):c.w)); if(e.t!=='img') e.h=0; });
+  psSheet.pages=[{els:head.concat(rest)}];
+  psRender(); psMeasure();                       // real heights for the current width
+  var pages=[{els:head.slice()}], pi=0;
+  var y=head.length?(head[0].h+18):0, col=0, rowH=0;
+  rest.forEach(function(e,i){
+    e.z=i+2;
+    if(e.w>colW+1){                              // full-width block → own row
+      if(col){ y+=rowH+gap; col=0; rowH=0; }
+      if(y+e.h>c.h && pages[pi].els.length){ pi++; pages[pi]={els:[]}; y=0; }
+      e.x=0; e.y=y; pages[pi].els.push(e); y+=e.h+gap; return;
+    }
+    if(col>=cols){ col=0; y+=rowH+gap; rowH=0; }
+    if(y+e.h>c.h && pages[pi].els.length){ pi++; pages[pi]={els:[]}; y=0; col=0; rowH=0; }
+    e.x=col*(colW+gap); e.y=y;
+    pages[pi].els.push(e); rowH=Math.max(rowH,e.h); col++;
+  });
+  psSheet.pages=pages;
+  psRender(); psSave();
+}
+
+/* ----- selection ----- */
+function psSelect(id){
+  psSelId=id||null;
+  Array.prototype.forEach.call(document.querySelectorAll('#psDoc .pel'),function(n){
+    n.classList.toggle('sel', n.getAttribute('data-id')===psSelId);
+    if(n.getAttribute('data-id')!==psSelId) n.classList.remove('editing');
+  });
+  psSelUI();
+}
+function psSelUI(){
+  var bar=el('psSelBar'), e=psGet(psSelId);
+  if(!bar) return;
+  bar.classList.toggle('hide',!e);
+  if(e){ el('psElFs').textContent=Math.round((e.fs||1)*100)+'%'; el('psElBold').classList.toggle('on',!!e.bold); }
+}
+function psEnterEdit(node,target){
+  if(!node) return;
+  node.classList.add('editing');
+  var f=(target&&target.closest&&target.closest('[contenteditable]'))||node.querySelector('[contenteditable]');
+  if(f){ f.focus();
+    try{ var r=document.createRange(); r.selectNodeContents(f); r.collapse(false);
+      var s=getSelection(); s.removeAllRanges(); s.addRange(r); }catch(err){}
+  }
+}
+function psExitEdit(){
+  Array.prototype.forEach.call(document.querySelectorAll('#psDoc .pel.editing'),function(n){ n.classList.remove('editing'); });
+  var a=document.activeElement; if(a&&a.isContentEditable) a.blur();
+}
+
+/* ----- pointer interaction: move / resize / rotate ----- */
+function psCanvasOf(node){ return node.closest('.pscanvas'); }
+function psPt(canvas,ev){ var r=canvas.getBoundingClientRect(); return {x:(ev.clientX-r.left)/psZoomF, y:(ev.clientY-r.top)/psZoomF}; }
+function psGuides(canvas,gx,gy){
+  var v=canvas.querySelector('.psguide.v'), h=canvas.querySelector('.psguide.h');
+  if(v){ v.classList.toggle('hide',gx==null); if(gx!=null) v.style.left=gx+'px'; }
+  if(h){ h.classList.toggle('hide',gy==null); if(gy!=null) h.style.top=gy+'px'; }
+}
+/* snap the dragged box to the canvas edges/centre and to the other elements */
+function psSnap(e,x,y,pageIdx){
+  var c=psCanvasPx(), T=6, others=(psSheet.pages[pageIdx].els||[]).filter(function(o){ return o.id!==e.id&&!o.r; });
+  var cx=[{p:0,g:0},{p:(c.w-e.w)/2,g:c.w/2},{p:c.w-e.w,g:c.w}];
+  var cy=[{p:0,g:0},{p:(c.h-e.h)/2,g:c.h/2},{p:c.h-e.h,g:c.h}];
+  others.forEach(function(o){
+    cx.push({p:o.x,g:o.x},{p:o.x+o.w-e.w,g:o.x+o.w},{p:o.x+(o.w-e.w)/2,g:o.x+o.w/2},{p:o.x+o.w+12,g:o.x+o.w},{p:o.x-e.w-12,g:o.x});
+    cy.push({p:o.y,g:o.y},{p:o.y+o.h-e.h,g:o.y+o.h},{p:o.y+(o.h-e.h)/2,g:o.y+o.h/2},{p:o.y+o.h+12,g:o.y+o.h},{p:o.y-e.h-12,g:o.y});
+  });
+  var bx=null,by=null;
+  cx.forEach(function(k){ if(Math.abs(k.p-x)<=T&&(bx==null||Math.abs(k.p-x)<Math.abs(bx.p-x))) bx=k; });
+  cy.forEach(function(k){ if(Math.abs(k.p-y)<=T&&(by==null||Math.abs(k.p-y)<Math.abs(by.p-y))) by=k; });
+  return { x:bx?bx.p:x, y:by?by.p:y, gx:bx?bx.g:null, gy:by?by.g:null };
+}
+function psDragMove(ev,e,node,canvas,pageIdx){
+  var start=psPt(canvas,ev), x0=e.x, y0=e.y, moved=false;
+  function mv(m){
+    var p=psPt(canvas,m), nx=x0+(p.x-start.x), ny=y0+(p.y-start.y);
+    if(Math.abs(p.x-start.x)>1||Math.abs(p.y-start.y)>1) moved=true;
+    var s=m.altKey?{x:nx,y:ny,gx:null,gy:null}:psSnap(e,nx,ny,pageIdx);   // hold Alt to place freely
+    e.x=Math.round(s.x); e.y=Math.round(s.y); psApplyElStyle(e); psGuides(canvas,s.gx,s.gy);
+  }
+  function up(m){
+    document.removeEventListener('pointermove',mv); document.removeEventListener('pointerup',up);
+    psGuides(canvas,null,null); psDragging=null;
+    if(moved) psDropOnPage(e,m,pageIdx);
+    psSave();
+  }
+  psDragging=e.id;
+  document.addEventListener('pointermove',mv); document.addEventListener('pointerup',up);
+}
+/* dropped over a different page? move it there and keep the spot under the cursor */
+function psDropOnPage(e,ev,fromPage){
+  var node=psNode(e.id); if(node) node.style.pointerEvents='none';
+  var under=document.elementFromPoint(ev.clientX,ev.clientY);
+  if(node) node.style.pointerEvents='';
+  var canvas=under&&under.closest&&under.closest('.pscanvas'); if(!canvas) return;
+  var to=+canvas.getAttribute('data-p'); if(to===fromPage||isNaN(to)) return;
+  var f=psFind(e.id); if(!f) return;
+  psSheet.pages[f.pi].els.splice(f.ei,1);
+  psSheet.pages[to].els.push(e);
+  psRender();
+}
+function psDragResize(ev,e,node,canvas,dir){
+  var start=psPt(canvas,ev), x0=e.x,y0=e.y,w0=e.w,h0=e.h, rad=(e.r||0)*Math.PI/180;
+  var cos=Math.cos(rad), sin=Math.sin(rad);
+  var ax=(dir.indexOf('w')>=0)?1:(dir.indexOf('e')>=0?-1:0);   // anchor side (opposite of the handle)
+  var ay=(dir.indexOf('n')>=0)?1:(dir.indexOf('s')>=0?-1:0);
+  function mv(m){
+    var p=psPt(canvas,m), dx=p.x-start.x, dy=p.y-start.y;
+    var lx=dx*cos+dy*sin, ly=-dx*sin+dy*cos;                    // pointer delta in the box's own axes
+    var w=w0, h=h0;
+    if(dir.indexOf('e')>=0) w=w0+lx; if(dir.indexOf('w')>=0) w=w0-lx;
+    if(dir.indexOf('s')>=0) h=h0+ly; if(dir.indexOf('n')>=0) h=h0-ly;
+    w=Math.max(40,Math.round(w)); h=Math.max(28,Math.round(h));
+    // keep the anchor corner/edge fixed on screen (works for any rotation)
+    var bx=ax*w0/2, by=ay*h0/2, nx2=ax*w/2, ny2=ay*h/2;
+    var cx0=x0+w0/2, cy0=y0+h0/2;
+    var cx=cx0+((bx-nx2)*cos-(by-ny2)*sin), cy=cy0+((bx-nx2)*sin+(by-ny2)*cos);
+    e.w=w; e.h=h; e.x=Math.round(cx-w/2); e.y=Math.round(cy-h/2);
+    psApplyElStyle(e);
+  }
+  function up(){ document.removeEventListener('pointermove',mv); document.removeEventListener('pointerup',up); psDragging=null; psSave(); }
+  psDragging=e.id;
+  document.addEventListener('pointermove',mv); document.addEventListener('pointerup',up);
+}
+function psDragRotate(ev,e,node,canvas){
+  var r=node.getBoundingClientRect(), cx=r.left+r.width/2, cy=r.top+r.height/2;
+  var a0=Math.atan2(ev.clientY-cy,ev.clientX-cx)*180/Math.PI, r0=e.r||0;
+  function mv(m){
+    var a=Math.atan2(m.clientY-cy,m.clientX-cx)*180/Math.PI, d=r0+(a-a0);
+    if(m.shiftKey) d=Math.round(d/15)*15;
+    [0,90,180,270,-90,-180,-270,360].forEach(function(s){ if(Math.abs(d-s)<4) d=s; });   // gentle snap to straight
+    e.r=Math.round(d*10)/10; psApplyElStyle(e);
+  }
+  function up(){ document.removeEventListener('pointermove',mv); document.removeEventListener('pointerup',up); psDragging=null; psSave(); }
+  psDragging=e.id;
+  document.addEventListener('pointermove',mv); document.addEventListener('pointerup',up);
+}
+
+/* ----- element actions ----- */
+/* a free-ish spot for a new element: below the heading, nudged so they don't stack exactly */
+function psFreeSpot(pi){
+  var els=(psSheet.pages[pi]&&psSheet.pages[pi].els)||[], top=0;
+  els.forEach(function(e){ if(e.t==='head') top=Math.max(top,e.y+(e.h||60)+16); });
+  var n=els.filter(function(e){ return e.t!=='head'; }).length;
+  return { x:20+(n%6)*18, y:top+20+(n%6)*18 };
+}
+function psAddEl(e){
+  if(!psSheet) return;
+  var pi=0, f=psFind(psSelId); if(f) pi=f.pi;          // drop it on the page you are working on
+  var s=psFreeSpot(pi); e.x=s.x; e.y=s.y;
+  e.z=++psZTop;
+  psSheet.pages[pi].els.push(e);
+  psRender(); psMeasure(); psRender();
+  psSelect(e.id); psSave();
+}
+function psAddCard(){
+  var colW=Math.floor((psCanvasPx().w-12*(psColsN()-1))/psColsN());
+  psAddEl({ id:psNewId(), t:'card', x:0,y:0,w:colW,h:0,r:0,z:0,fs:1,bold:false,
+    code:'',model:'',colTxt:'',colSub:'',qty:'',accs:[],photo:'',sw:'',bk:'' });
+}
+function psAddText(){
+  psAddEl({ id:psNewId(), t:'text', x:0,y:0,w:Math.min(360,psCanvasPx().w),h:0,r:0,z:0,fs:1,bold:false,html:'' });
+}
+function psAddImage(src){
+  psAddEl({ id:psNewId(), t:'img', x:0,y:0,w:220,h:165,r:0,z:0,fs:1,bold:false,src:src||'' });
+}
+/* after an orientation change the sheet is a different shape — pull everything back inside it */
+function psClampToPage(){
+  var c=psCanvasPx();
+  psAllEls().forEach(function(e){
+    if(e.w>c.w){ e.w=c.w; if(e.t!=='img') e.h=0; }
+    if(e.h>c.h) e.h=c.h;
+    e.x=Math.max(0,Math.min(e.x,c.w-e.w));
+    e.y=Math.max(0,Math.min(e.y,c.h-(e.h||60)));
+  });
+}
+function psDupSel(){
+  var f=psFind(psSelId); if(!f) return;
+  var c=JSON.parse(JSON.stringify(f.e));
+  c.id=psNewId(); c.x=f.e.x+16; c.y=f.e.y+16; c.z=++psZTop;
+  psSheet.pages[f.pi].els.push(c); psRender(); psSelect(c.id); psSave();
+}
+function psDelSel(){
+  var f=psFind(psSelId); if(!f) return;
+  psSheet.pages[f.pi].els.splice(f.ei,1);
+  psSelId=null; psRender(); psSave();
+}
+function psLayer(front){
+  var e=psGet(psSelId); if(!e) return;
+  if(front) e.z=++psZTop; else { var lo=Math.min.apply(null,psAllEls().map(function(x){ return x.z||1; })); e.z=lo-1; }
+  psApplyElStyle(e); psSave();
+}
+function psElScale(d){
+  var e=psGet(psSelId); if(!e) return;
+  e.fs=Math.min(2.5,Math.max(0.5,Math.round(((e.fs||1)+d)*10)/10));
+  e.h=0; psRender(); psMeasure(); psRender(); psSelUI(); psSave();   // grow the box with the text
+}
+function psAddPage(){
+  if(!psSheet) return;
+  psSheet.pages.push({els:[]}); psRender(); psSave();
+  var d=el('psDoc'); if(d) d.lastElementChild.scrollIntoView({behavior:'smooth',block:'center'});
+}
+function psDelPage(i){
+  if(!psSheet||psSheet.pages.length<2) return;
+  var n=(psSheet.pages[i].els||[]).length;
+  if(n && !confirm('Delete page '+(i+1)+' with its '+n+' element(s)?')) return;
+  psSheet.pages.splice(i,1); psSelId=null; psRender(); psSave();
+}
+
+/* ----- wiring ----- */
+function psWire(){
+  var doc=el('psDoc'); if(!doc||doc._wired) return; doc._wired=true;
+  doc.addEventListener('pointerdown',function(ev){
+    if(ev.button!==0) return;
+    var node=ev.target.closest&&ev.target.closest('.pel');
+    if(!node){ if(ev.target.closest('.pspage')){ psExitEdit(); psSelect(null); } return; }
+    var e=psGet(node.getAttribute('data-id')); if(!e) return;
+    var canvas=psCanvasOf(node), pageIdx=+canvas.getAttribute('data-p');
+    var rot=ev.target.closest('.pelrot'), hh=ev.target.closest('[data-h]');
+    if(node.classList.contains('editing')&&!rot&&!hh) return;   // typing → let the caret work
+    psExitEdit();
+    if(node.getAttribute('data-id')!==psSelId) psSelect(e.id);
+    ev.preventDefault();
+    if(rot) return psDragRotate(ev,e,node,canvas);
+    if(hh) return psDragResize(ev,e,node,canvas,hh.getAttribute('data-h'));
+    psDragMove(ev,e,node,canvas,pageIdx);
+  });
+  doc.addEventListener('dblclick',function(ev){
+    var node=ev.target.closest&&ev.target.closest('.pel'); if(!node) return;
+    var e=psGet(node.getAttribute('data-id')); if(!e) return;
+    if(e.t==='img'){ el('psImgFile').setAttribute('data-replace',e.id); el('psImgFile').click(); return; }
+    psSelect(e.id); psEnterEdit(node,ev.target);
+  });
+  doc.addEventListener('click',function(ev){
+    var d=ev.target.closest&&ev.target.closest('[data-delp]');
+    if(d){ ev.preventDefault(); psDelPage(+d.getAttribute('data-delp')); }
+  });
+  doc.addEventListener('input',function(ev){
+    var t=ev.target, f=t.getAttribute&&t.getAttribute('data-f'); if(!f) return;
+    var node=t.closest('.pel'), e=node&&psGet(node.getAttribute('data-id')); if(!e) return;
+    if(f==='accc'||f==='accq'){
+      var i=+t.getAttribute('data-ai');
+      if(e.accs&&e.accs[i]) e.accs[i][f==='accc'?'c':'q']=t.textContent.trim();
+    }
+    else if(f==='html') e.html=t.innerHTML;
+    else e[f]=t.textContent.trim();
+    if(f==='sup'){ order.printSupplier=e.sup; saveLocal(); }
+    if(f==='ctn'){ order.containerNo=e.ctn; saveLocal(); }
+    if(f==='qty') psRecalc();
+    psSaveLater();
+  });
+  document.addEventListener('keydown',function(ev){
+    var sh=el('printSheet'); if(!sh||sh.classList.contains('hide')) return;
+    var a=document.activeElement;
+    if(a&&a.isContentEditable){ if(ev.key==='Escape'){ psExitEdit(); } return; }
+    if(ev.key==='Escape'){ psSelect(null); return; }
+    var e=psGet(psSelId); if(!e) return;
+    if(ev.key==='Delete'){ ev.preventDefault(); psDelSel(); return; }
+    if((ev.ctrlKey||ev.metaKey)&&(ev.key==='d'||ev.key==='D')){ ev.preventDefault(); psDupSel(); return; }
+    var s=ev.shiftKey?10:1, mv=false;
+    if(ev.key==='ArrowLeft'){ e.x-=s; mv=true; } else if(ev.key==='ArrowRight'){ e.x+=s; mv=true; }
+    else if(ev.key==='ArrowUp'){ e.y-=s; mv=true; } else if(ev.key==='ArrowDown'){ e.y+=s; mv=true; }
+    if(mv){ ev.preventDefault(); psApplyElStyle(e); psSaveLater(); }
+  });
+}
+
+/* ----- open / prefs / fit ----- */
+function openPrintSheet(){
+  el('printSheet').classList.remove('hide');
+  var saved=order.sheet;
+  if(saved&&saved.pages&&saved.pages.length&&saved.sig===psSig()){
+    psSheet=saved;
+    psZTop=Math.max.apply(null,[1].concat(psAllEls().map(function(e){ return e.z||1; })));
+    psSelId=null; psApplyPrefs();
+  }else{
+    psSheet={ sig:psSig(), pages:[{els:[psHeadEl()].concat(psElsFromOrder())}] };
+    psSelId=null; psApplyPrefs(); psAutoArrange();
+  }
+  psWire();
+}
 function psApplyPrefs(){
   try{ localStorage.setItem('kp-ob-psprefs',JSON.stringify(psPrefs)); }catch(e){}
-  var pg=el('psPage');
-  pg.classList.toggle('land',psPrefs.orient==='landscape');
-  pg.classList.toggle('psbold',!!psPrefs.bold);
-  pg.style.setProperty('--fs',psPrefs.fs);
-  if(psPrefs.cols){ pg.style.setProperty('--cols',psPrefs.cols); pg.style.setProperty('--phw',PS_PHW[psPrefs.cols]); }
-  else { pg.style.removeProperty('--cols'); pg.style.removeProperty('--phw'); } // auto = let the orientation decide
-  var eff=psPrefs.cols||(psPrefs.orient==='landscape'?3:2);
-  el('psCols').textContent = psPrefs.cols ? ('▦ '+eff+' per row') : ('▦ auto ('+eff+')');
-  psFit();
   var st=el('psPageStyle');
   if(!st){ st=document.createElement('style'); st.id='psPageStyle'; document.head.appendChild(st); }
-  st.textContent='@media print{@page{size:A4 '+psPrefs.orient+';margin:12mm}}';
-  el('psOrient').textContent = psPrefs.orient==='landscape' ? '⬓ Portrait' : '⬒ Landscape'; // label = what you switch to
+  st.textContent='@media print{@page{size:A4 '+psPrefs.orient+';margin:0}}';   // page padding = the print margin
+  el('psOrient').textContent=psPrefs.orient==='landscape'?'⬓ Portrait':'⬒ Landscape';
+  el('psCols').textContent=psPrefs.cols?('▦ '+psPrefs.cols+' per row'):('▦ auto ('+psColsN()+')');
   el('psFsVal').textContent=Math.round(psPrefs.fs*100)+'%';
   el('psBold').classList.toggle('on',!!psPrefs.bold);
+  el('psGridT').classList.toggle('on',!!psPrefs.grid);
+  if(psSheet && psSheet.orient && psSheet.orient!==psPrefs.orient){ psClampToPage(); psSheet.orient=psPrefs.orient; psSave(); }
+  if(psSheet) psSheet.orient=psPrefs.orient;
+  psRender();
+  if(psSheet) psMeasure();
 }
-/* shrink the paper on screen so the whole sheet fits the window (print is unaffected) */
+/* shrink the paper on screen so a whole sheet fits the window (printing is unaffected) */
 function psFit(){
-  var sh=el('printSheet'), pg=el('psPage'); if(!sh||!pg||sh.classList.contains('hide')) return;
-  var sheetPx=(psPrefs.orient==='landscape'?297:210)*(96/25.4);
-  var f=Math.min(1,(sh.clientWidth-36)/sheetPx);
-  if(f>=0.999) pg.style.removeProperty('zoom'); else pg.style.zoom=Math.round(f*1000)/1000;
+  var sh=el('printSheet'); if(!sh||sh.classList.contains('hide')) return;
+  var f=Math.min(1,(sh.clientWidth-46)/(psPageMM().w*PPMM));
+  psZoomF=f>=0.999?1:Math.round(f*1000)/1000;
+  Array.prototype.forEach.call(document.querySelectorAll('#psDoc .pspage'),function(p){
+    if(psZoomF===1) p.style.removeProperty('zoom'); else p.style.zoom=psZoomF;
+  });
 }
 window.addEventListener('resize',function(){ clearTimeout(psFit._t); psFit._t=setTimeout(psFit,120); });
-/* free text block (note to the supplier, remarks…) — movable/removable like a card */
-function psAddText(){
-  var pg=el('psPage'), grid=pg.querySelector('.psgrid');
-  if(!grid){ var em=pg.querySelector('.psempty'); if(em) em.remove();
-    grid=document.createElement('div'); grid.className='psgrid'; pg.appendChild(grid); }
-  var d=document.createElement('div'); d.className='psnote';
-  d.innerHTML='<div class="psctl"><button class="psmv" data-mv="-1" title="move up">◀</button><button class="psmv" data-mv="1" title="move down">▶</button><button class="psrm" title="remove this text">✕</button></div>'+
-    '<div class="psntxt" contenteditable="true" data-ph="Type any text — note to the supplier, packing remark…"></div>';
-  grid.appendChild(d);
-  var t=d.querySelector('.psntxt'); if(t) t.focus();
-}
-el('psPrint').onclick=function(){ window.print(); };
+
+el('psPrint').onclick=function(){ psExitEdit(); psSelect(null); setTimeout(function(){ window.print(); },30); };
 el('psAdd').onclick=psAddCard;
 el('psText').onclick=psAddText;
+el('psImg').onclick=function(){ el('psImgFile').removeAttribute('data-replace'); el('psImgFile').click(); };
+el('psImgFile').onchange=function(){
+  var f=this.files&&this.files[0], rep=this.getAttribute('data-replace'); this.value='';
+  if(!f) return;
+  photoFromFile(f,function(dataUrl){
+    if(!dataUrl) return;
+    if(rep){ var e=psGet(rep); if(e){ e.src=dataUrl; psRender(); psSelect(rep); psSave(); } }
+    else psAddImage(dataUrl);
+  });
+};
+el('psAddPage').onclick=psAddPage;
 el('psOrient').onclick=function(){ psPrefs.orient=(psPrefs.orient==='landscape'?'portrait':'landscape'); psApplyPrefs(); };
-el('psCols').onclick=function(){ psPrefs.cols=(psPrefs.cols+1)%4; psApplyPrefs(); }; // auto → 1 → 2 → 3 → auto
+el('psCols').onclick=function(){ psPrefs.cols=(psPrefs.cols+1)%4; psApplyPrefs(); };   // auto → 1 → 2 → 3 → auto
+el('psArrange').onclick=psAutoArrange;
+el('psGridT').onclick=function(){ psPrefs.grid=!psPrefs.grid; psApplyPrefs(); };
 el('psFsMinus').onclick=function(){ psPrefs.fs=Math.max(0.7,Math.round((psPrefs.fs-0.1)*10)/10); psApplyPrefs(); };
 el('psFsPlus').onclick=function(){ psPrefs.fs=Math.min(1.8,Math.round((psPrefs.fs+0.1)*10)/10); psApplyPrefs(); };
 el('psBold').onclick=function(){ psPrefs.bold=!psPrefs.bold; psApplyPrefs(); };
+el('psElFsM').onclick=function(){ psElScale(-0.1); };
+el('psElFsP').onclick=function(){ psElScale(0.1); };
+el('psElBold').onclick=function(){ var e=psGet(psSelId); if(!e) return; e.bold=!e.bold;
+  var n=psNode(e.id); if(n) n.classList.toggle('elbold',e.bold); psSelUI(); psSave(); };
+el('psElDup').onclick=psDupSel;
+el('psElFront').onclick=function(){ psLayer(true); };
+el('psElBack').onclick=function(){ psLayer(false); };
+el('psElReset').onclick=function(){ var e=psGet(psSelId); if(!e) return; e.r=0; psApplyElStyle(e); psSave(); };
+el('psElDel').onclick=psDelSel;
 el('psClose').onclick=function(){ el('printSheet').classList.add('hide'); };
 
 /* ---------- top bar actions ---------- */
@@ -1173,7 +1577,7 @@ el('btnLoad').onclick=openOrder;
 function saveOrder(){
   if(!order.lines.length) return alert('Nothing to save.');
   order.name=el('ordName').value.trim()||('Order '+new Date().toLocaleString());
-  var payload={ name:order.name, supplierId:order.supplierId||null, lines:order.lines, savedAt:Date.now(), containerNo:order.containerNo||null, printSupplier:order.printSupplier||null };
+  var payload={ name:order.name, supplierId:order.supplierId||null, lines:order.lines, savedAt:Date.now(), containerNo:order.containerNo||null, printSupplier:order.printSupplier||null, sheet:order.sheet||null };
   if(order._id){ db.ref(OB+'/orders/'+order._id).set(payload).then(function(){ setCloud('ok','order saved'); }); }
   else{ var r=db.ref(OB+'/orders').push(); r.set(payload).then(function(){ order._id=r.key; saveLocal(); setCloud('ok','order saved'); }).catch(function(e){ alert('Save failed: '+e.message); }); }
 }
@@ -1190,7 +1594,7 @@ function openOrder(){
     box.querySelectorAll('[data-open]').forEach(function(row){
       row.addEventListener('click',function(ev){
         if(ev.target.getAttribute('data-delorder')){ if(confirm('Delete this order?')){ db.ref(OB+'/orders/'+ev.target.getAttribute('data-delorder')).remove(); closeModal(); } return; }
-        var k=row.getAttribute('data-open'); order={name:o[k].name||'',supplierId:o[k].supplierId||null,lines:o[k].lines||[],_id:k,containerNo:o[k].containerNo||'',printSupplier:o[k].printSupplier||''};
+        var k=row.getAttribute('data-open'); order={name:o[k].name||'',supplierId:o[k].supplierId||null,lines:o[k].lines||[],_id:k,containerNo:o[k].containerNo||'',printSupplier:o[k].printSupplier||'',sheet:o[k].sheet||null};
         el('ordName').value=order.name; renderCards(); saveLocal(); closeModal();
       });
     });
