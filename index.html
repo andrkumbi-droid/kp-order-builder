@@ -305,9 +305,16 @@
   .psbar{position:sticky;top:0;z-index:2;display:flex;gap:12px;align-items:center;background:#1b1f24;border-bottom:1px solid #000;padding:10px 16px}
   .psbar .psbarnote{color:#9aa4af;font-size:12px}
   .psbar .btn.ghost{margin-left:auto;color:#e7ecf2;border-color:#3a434e}
-  .pspage{max-width:820px;margin:18px auto 40px;background:#fff;color:#111;padding:26px 26px 30px;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+  .psbar .btn:not(.primary){color:#e7ecf2;border-color:#3a434e;background:transparent}
+  .psbar .btn.on{border-color:var(--accent2);color:var(--accent2)}
+  .psbar .psfsval{color:#9aa4af;font-size:11px;min-width:34px;text-align:center}
+  .psbar .psgrp{display:flex;gap:4px;align-items:center}
+  .pspage{--fs:1;max-width:820px;margin:18px auto 40px;background:#fff;color:#111;padding:26px 26px 30px;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+  .pspage.land{max-width:1150px}
+  .pspage.land .psgrid{grid-template-columns:1fr 1fr 1fr}
+  .pspage.psbold .psmodel,.pspage.psbold .pscname,.pspage.psbold .pscname small,.pspage.psbold .psaccs span,.pspage.psbold .psnote{font-weight:700;color:#111}
   .pshead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:16px}
-  .pshead .pst{font-size:22px;font-weight:800;letter-spacing:.3px}
+  .pshead .pst{font-size:calc(22px*var(--fs,1));font-weight:800;letter-spacing:.3px}
   .pshead .pssub{font-size:12px;color:#555;margin-top:3px}
   .pshead .psstat{text-align:right;font-size:12px;color:#333;white-space:nowrap;line-height:1.5}
   .pshead .psstat b{font-size:16px;color:#111}
@@ -321,15 +328,18 @@
   .psctl .psrm:hover{border-color:#ef4444;color:#ef4444}
   .pscard .psphoto{width:104px;height:104px;object-fit:cover;border-radius:6px;background:#eef0f2;border:1px solid #e3e6ea}
   .pscard .psinfo{min-width:0}
-  .pscard .pscode{font-size:19px;font-weight:800;letter-spacing:.4px;line-height:1}
-  .pscard .psmodel{font-size:12px;color:#555;margin:3px 0 7px}
+  .pscard .pscode{font-size:calc(19px*var(--fs,1));font-weight:800;letter-spacing:.4px;line-height:1}
+  .pscard .psmodel{font-size:calc(12px*var(--fs,1));color:#555;margin:3px 0 7px}
   .pscard .pscolor{display:flex;gap:8px;align-items:center}
   .pscard .pscolor img{width:36px;height:36px;object-fit:cover;border-radius:5px;border:1px solid #e3e6ea;background:#eef0f2;flex:none}
-  .pscard .pscname{font-size:12px;font-weight:700;line-height:1.25;min-width:0}
+  .pscard .pscname{font-size:calc(12px*var(--fs,1));font-weight:700;line-height:1.25;min-width:0}
   .pscard .pscname small{display:block;font-weight:400;color:#666}
-  .pscard .psqty{margin-top:8px;display:inline-block;background:#111;color:#fff;font-weight:800;font-size:14px;padding:3px 12px;border-radius:20px}
+  .pscard .psqty{margin-top:8px;display:inline-block;background:#111;color:#fff;font-weight:800;font-size:calc(14px*var(--fs,1));padding:3px 12px;border-radius:20px}
   .pscard .psaccs{margin-top:8px;display:flex;flex-wrap:wrap;gap:5px}
-  .pscard .psaccs span{font-size:11px;background:#f0f2f4;border:1px solid #e0e4e8;border-radius:5px;padding:2px 7px;color:#333}
+  .pscard .psaccs span{font-size:calc(11px*var(--fs,1));background:#f0f2f4;border:1px solid #e0e4e8;border-radius:5px;padding:2px 7px;color:#333}
+  /* free text block on the sheet */
+  .psnote{grid-column:1/-1;position:relative;border:1px dashed #cfd4da;border-radius:8px;padding:10px 12px;font-size:calc(13px*var(--fs,1));line-height:1.5;break-inside:avoid;page-break-inside:avoid}
+  .psnote .psntxt{outline:none;min-height:20px}
   .pscard .psaccs b{color:#111}
   .psempty{padding:40px;text-align:center;color:#777}
   .psfoot{margin-top:16px;border-top:1px solid #ccc;padding-top:8px;font-size:11px;color:#888;display:flex;justify-content:space-between}
@@ -351,6 +361,8 @@
     .pspage [contenteditable]:empty:before{content:''!important}
     .psctl{display:none!important}
     .pscard:has(.psqn:empty) .psqty{display:none}
+    .psnote{border-color:#bbb}
+    .psnote:has(.psntxt:empty){display:none}
     .psgrid{gap:8px}
     .pscard{border-color:#bbb}
     @page{margin:12mm}
@@ -470,7 +482,15 @@
 <div class="hide" id="printSheet">
   <div class="psbar noprint">
     <button class="btn primary" id="psPrint">🖨️ Print / Save PDF</button>
-    <button class="btn" id="psAdd" style="color:#e7ecf2;border-color:#3a434e">＋ Add card</button>
+    <button class="btn" id="psAdd">＋ Add card</button>
+    <button class="btn" id="psText">＋ Text</button>
+    <span class="psgrp">
+      <button class="btn" id="psOrient">⬒ Landscape</button>
+      <button class="btn" id="psFsMinus" title="smaller text">A−</button>
+      <span class="psfsval" id="psFsVal">100%</span>
+      <button class="btn" id="psFsPlus" title="bigger text">A+</button>
+      <button class="btn" id="psBold" title="bold details"><b>B</b></button>
+    </span>
     <span class="psbarnote">Click any field (supplier, container no., code, colour, qty…) to edit it. Hover a card: ◀ ▶ move it, ✕ removes it (print only — the order itself is untouched). Use your browser's “Save as PDF” to keep a file.</span>
     <button class="btn ghost" id="psClose">✕ Close</button>
   </div>
@@ -1036,6 +1056,7 @@ function buildPrintSheet(){
 function openPrintSheet(){
   el('psPage').innerHTML=buildPrintSheet();
   el('printSheet').classList.remove('hide');
+  psApplyPrefs();
   // remember hand-typed heading (supplier + container no) for this order
   Array.prototype.forEach.call(el('psPage').querySelectorAll('[data-hk]'),function(node){
     node.addEventListener('blur',function(){
@@ -1048,12 +1069,12 @@ function openPrintSheet(){
   if(!pg._psWired){ pg._psWired=true; // screen-only card tools: ◀ ▶ move, ✕ remove — the order itself is untouched
     pg.addEventListener('click',function(e){
       var mv=e.target.closest&&e.target.closest('.psmv');
-      if(mv){ var c=mv.closest('.pscard'), d=+mv.getAttribute('data-mv');
+      if(mv){ var c=mv.closest('.pscard,.psnote'), d=+mv.getAttribute('data-mv');
         if(d<0&&c.previousElementSibling) c.parentNode.insertBefore(c,c.previousElementSibling);
         else if(d>0&&c.nextElementSibling) c.parentNode.insertBefore(c.nextElementSibling,c);
         return; }
       var rm=e.target.closest&&e.target.closest('.psrm');
-      if(rm){ rm.closest('.pscard').remove(); psRecalc(); return; }
+      if(rm){ rm.closest('.pscard,.psnote').remove(); psRecalc(); return; }
     });
     pg.addEventListener('blur',function(e){ if(e.target.classList&&e.target.classList.contains('psqn')) psRecalc(); },true);
   }
@@ -1083,8 +1104,44 @@ function psAddCard(){
   grid.appendChild(d); psRecalc();
   var c=d.querySelector('.pscode'); if(c) c.focus();
 }
+/* sheet layout prefs: orientation, text size, bold — kept in localStorage, applied to screen AND print */
+var psPrefs={orient:'portrait',fs:1,bold:false};
+try{ var _pp=JSON.parse(localStorage.getItem('kp-ob-psprefs')||'{}');
+  if(_pp.orient==='landscape') psPrefs.orient='landscape';
+  if(_pp.fs>=0.7&&_pp.fs<=1.8) psPrefs.fs=_pp.fs;
+  psPrefs.bold=!!_pp.bold;
+}catch(e){}
+function psApplyPrefs(){
+  try{ localStorage.setItem('kp-ob-psprefs',JSON.stringify(psPrefs)); }catch(e){}
+  var pg=el('psPage');
+  pg.classList.toggle('land',psPrefs.orient==='landscape');
+  pg.classList.toggle('psbold',!!psPrefs.bold);
+  pg.style.setProperty('--fs',psPrefs.fs);
+  var st=el('psPageStyle');
+  if(!st){ st=document.createElement('style'); st.id='psPageStyle'; document.head.appendChild(st); }
+  st.textContent='@media print{@page{size:A4 '+psPrefs.orient+';margin:12mm}}';
+  el('psOrient').textContent = psPrefs.orient==='landscape' ? '⬓ Portrait' : '⬒ Landscape'; // label = what you switch to
+  el('psFsVal').textContent=Math.round(psPrefs.fs*100)+'%';
+  el('psBold').classList.toggle('on',!!psPrefs.bold);
+}
+/* free text block (note to the supplier, remarks…) — movable/removable like a card */
+function psAddText(){
+  var pg=el('psPage'), grid=pg.querySelector('.psgrid');
+  if(!grid){ var em=pg.querySelector('.psempty'); if(em) em.remove();
+    grid=document.createElement('div'); grid.className='psgrid'; pg.appendChild(grid); }
+  var d=document.createElement('div'); d.className='psnote';
+  d.innerHTML='<div class="psctl"><button class="psmv" data-mv="-1" title="move up">◀</button><button class="psmv" data-mv="1" title="move down">▶</button><button class="psrm" title="remove this text">✕</button></div>'+
+    '<div class="psntxt" contenteditable="true" data-ph="Type any text — note to the supplier, packing remark…"></div>';
+  grid.appendChild(d);
+  var t=d.querySelector('.psntxt'); if(t) t.focus();
+}
 el('psPrint').onclick=function(){ window.print(); };
 el('psAdd').onclick=psAddCard;
+el('psText').onclick=psAddText;
+el('psOrient').onclick=function(){ psPrefs.orient=(psPrefs.orient==='landscape'?'portrait':'landscape'); psApplyPrefs(); };
+el('psFsMinus').onclick=function(){ psPrefs.fs=Math.max(0.7,Math.round((psPrefs.fs-0.1)*10)/10); psApplyPrefs(); };
+el('psFsPlus').onclick=function(){ psPrefs.fs=Math.min(1.8,Math.round((psPrefs.fs+0.1)*10)/10); psApplyPrefs(); };
+el('psBold').onclick=function(){ psPrefs.bold=!psPrefs.bold; psApplyPrefs(); };
 el('psClose').onclick=function(){ el('printSheet').classList.add('hide'); };
 
 /* ---------- top bar actions ---------- */
