@@ -312,7 +312,13 @@
   .pshead .psstat{text-align:right;font-size:12px;color:#333;white-space:nowrap;line-height:1.5}
   .pshead .psstat b{font-size:16px;color:#111}
   .psgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  .pscard{border:1px solid #cfd4da;border-radius:8px;padding:10px;display:grid;grid-template-columns:104px 1fr;gap:12px;break-inside:avoid;page-break-inside:avoid}
+  .pscard{border:1px solid #cfd4da;border-radius:8px;padding:10px;display:grid;grid-template-columns:104px 1fr;gap:12px;break-inside:avoid;page-break-inside:avoid;position:relative}
+  /* per-card screen-only controls: move / remove (never printed) */
+  .psctl{position:absolute;top:5px;right:5px;display:flex;gap:3px;opacity:0;transition:.12s}
+  .pscard:hover .psctl{opacity:1}
+  .psctl button{width:22px;height:22px;border-radius:6px;border:1px solid #d4d9de;background:#fff;color:#666;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
+  .psctl button:hover{border-color:#3b82f6;color:#111}
+  .psctl .psrm:hover{border-color:#ef4444;color:#ef4444}
   .pscard .psphoto{width:104px;height:104px;object-fit:cover;border-radius:6px;background:#eef0f2;border:1px solid #e3e6ea}
   .pscard .psinfo{min-width:0}
   .pscard .pscode{font-size:19px;font-weight:800;letter-spacing:.4px;line-height:1}
@@ -343,6 +349,8 @@
     .pspage{max-width:none;margin:0;padding:0;box-shadow:none}
     .pspage [contenteditable]{background:none!important;box-shadow:none!important}
     .pspage [contenteditable]:empty:before{content:''!important}
+    .psctl{display:none!important}
+    .pscard:has(.psqn:empty) .psqty{display:none}
     .psgrid{gap:8px}
     .pscard{border-color:#bbb}
     @page{margin:12mm}
@@ -462,7 +470,8 @@
 <div class="hide" id="printSheet">
   <div class="psbar noprint">
     <button class="btn primary" id="psPrint">🖨️ Print / Save PDF</button>
-    <span class="psbarnote">Click any field (supplier, container no., code, colour, qty…) to correct it, then print. Use your browser's “Save as PDF” to keep a file.</span>
+    <button class="btn" id="psAdd" style="color:#e7ecf2;border-color:#3a434e">＋ Add card</button>
+    <span class="psbarnote">Click any field (supplier, container no., code, colour, qty…) to edit it. Hover a card: ◀ ▶ move it, ✕ removes it (print only — the order itself is untouched). Use your browser's “Save as PDF” to keep a file.</span>
     <button class="btn ghost" id="psClose">✕ Close</button>
   </div>
   <div class="pspage" id="psPage"></div>
@@ -1006,6 +1015,7 @@ function buildPrintSheet(){
     var colTxt=book||''; var colSub=[page&&('Page '+page),num].filter(Boolean).join(' · ');
     var accHtml=(ln.accs||[]).map(function(a){ return '<span contenteditable="true"><b>'+esc(a.code)+'</b> '+esc(a.qty)+(a.unit?(' '+esc(a.unit)):' pcs')+'</span>'; }).join('');
     return '<div class="pscard">'+
+      '<div class="psctl"><button class="psmv" data-mv="-1" title="move up / left">◀</button><button class="psmv" data-mv="1" title="move down / right">▶</button><button class="psrm" title="remove this card from the sheet (order stays)">✕</button></div>'+
       '<img class="psphoto" src="'+esc(photo)+'" onerror="this.style.visibility=\'hidden\'">'+
       '<div class="psinfo">'+
         '<div class="pscode" contenteditable="true" data-ph="Code">'+esc(ln.code||'')+'</div>'+
@@ -1034,8 +1044,47 @@ function openPrintSheet(){
       saveLocal();
     });
   });
+  var pg=el('psPage');
+  if(!pg._psWired){ pg._psWired=true; // screen-only card tools: ◀ ▶ move, ✕ remove — the order itself is untouched
+    pg.addEventListener('click',function(e){
+      var mv=e.target.closest&&e.target.closest('.psmv');
+      if(mv){ var c=mv.closest('.pscard'), d=+mv.getAttribute('data-mv');
+        if(d<0&&c.previousElementSibling) c.parentNode.insertBefore(c,c.previousElementSibling);
+        else if(d>0&&c.nextElementSibling) c.parentNode.insertBefore(c.nextElementSibling,c);
+        return; }
+      var rm=e.target.closest&&e.target.closest('.psrm');
+      if(rm){ rm.closest('.pscard').remove(); psRecalc(); return; }
+    });
+    pg.addEventListener('blur',function(e){ if(e.target.classList&&e.target.classList.contains('psqn')) psRecalc(); },true);
+  }
+}
+/* header + footer totals follow what's actually on the sheet */
+function psRecalc(){
+  var pg=el('psPage'), n=pg.querySelectorAll('.pscard').length, tot=0;
+  Array.prototype.forEach.call(pg.querySelectorAll('.psqn'),function(x){ var q=parseInt(String(x.textContent).replace(/[^\d]/g,''),10); if(!isNaN(q)) tot+=q; });
+  var st=pg.querySelector('.psstat'); if(st) st.innerHTML='<b>'+n+'</b> models<br>'+tot.toLocaleString()+' pcs total';
+  var ft=pg.querySelector('.psfoot span:last-child'); if(ft) ft.textContent=n+' models · '+tot.toLocaleString()+' pcs';
+}
+/* blank editable card (e.g. a model the PI missed) */
+function psAddCard(){
+  var pg=el('psPage'), grid=pg.querySelector('.psgrid');
+  if(!grid){ var em=pg.querySelector('.psempty'); if(em) em.remove();
+    grid=document.createElement('div'); grid.className='psgrid'; pg.appendChild(grid); }
+  var d=document.createElement('div'); d.className='pscard';
+  d.innerHTML='<div class="psctl"><button class="psmv" data-mv="-1" title="move up / left">◀</button><button class="psmv" data-mv="1" title="move down / right">▶</button><button class="psrm" title="remove this card from the sheet (order stays)">✕</button></div>'+
+    '<img class="psphoto" style="visibility:hidden">'+
+    '<div class="psinfo">'+
+      '<div class="pscode" contenteditable="true" data-ph="Code"></div>'+
+      '<div class="psmodel" contenteditable="true" data-ph="material · size"></div>'+
+      '<div class="pscolor"><span class="pscname"><span contenteditable="true" data-ph="colour / book"></span><small contenteditable="true" data-ph="page · no."></small></span></div>'+
+      '<span class="psqty"><span class="psqn" contenteditable="true" data-ph="qty"></span> pcs</span>'+
+      '<div class="psaccs"><span contenteditable="true" data-ph="+ accessory"></span></div>'+
+    '</div>';
+  grid.appendChild(d); psRecalc();
+  var c=d.querySelector('.pscode'); if(c) c.focus();
 }
 el('psPrint').onclick=function(){ window.print(); };
+el('psAdd').onclick=psAddCard;
 el('psClose').onclick=function(){ el('printSheet').classList.add('hide'); };
 
 /* ---------- top bar actions ---------- */
