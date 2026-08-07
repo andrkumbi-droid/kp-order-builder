@@ -2055,6 +2055,19 @@ function ithumb(src){ return src?'<img class="cthumb" src="'+esc(src)+'" loading
 function fileInputHtml(k,field){ return '<input type="file" accept="image/*" class="pupload" data-pkey="'+k+'" data-field="'+field+'" style="display:none">'; }
 function thumbImgHtml(k,field,src){ return '<img class="cthumb" data-pkey="'+k+'" data-field="'+field+'" src="'+esc(src)+'" loading="lazy" onerror="this.style.opacity=.12" title="click to enlarge">'+fileInputHtml(k,field); }
 function emptyThumbHtml(k,field){ return '<label class="upthumb" title="click to add a photo"><span class="upadd">＋</span>'+fileInputHtml(k,field)+'</label>'; }
+/* a photo that failed to load is not a photo — show the ＋ so one click uploads one */
+function thumbToPlus(im){
+  var k=im.getAttribute('data-pkey'), f=im.getAttribute('data-field'); if(!k||!f) return;
+  var td=im.closest('td'), old=td&&td.querySelector('input.pupload[data-field="'+f+'"]');
+  if(old) old.remove();
+  im.outerHTML=emptyThumbHtml(k,f);
+}
+/* catches thumbs whose error already fired (cached 404s) before the listener existed */
+function sweepBrokenThumbs(box){
+  Array.prototype.forEach.call(box.querySelectorAll('img.cthumb[data-pkey]'),function(im){
+    if(im.complete && im.naturalWidth===0 && im.getAttribute('src')) thumbToPlus(im);
+  });
+}
 function upThumb(key,field,src){ return src? thumbImgHtml(key,field,src) : emptyThumbHtml(key,field); }
 /* Book cell: uploadable book/cover image + editable book name */
 function bookCell(key,img,name){ return '<td class="pbookcell">'+upThumb(key,'bookImg',img)+'<span class="pedit" contenteditable="true" spellcheck="false" data-pkey="'+key+'" data-field="book" title="click to edit">'+esc(name||'')+'</span></td>'; }
@@ -2253,6 +2266,12 @@ function openProducts(){
   if(!box._imgWired){ box._imgWired=true; // delegated (survives re-renders): click a photo → enlarge; pick a file → upload
     box.addEventListener('click',function(e){ var im=e.target.closest&&e.target.closest('img.cthumb'); if(im){ e.preventDefault(); openLightbox(im); } });
     box.addEventListener('change',function(e){ var t=e.target; if(t&&t.classList&&t.classList.contains('pupload')) handleUpload(t); });
+    // A photo that can't be loaded (e.g. a website URL for a code that has no picture yet)
+    // used to sit there as a faint broken thumb — looking empty but blocking the ＋ upload.
+    // Turn it into a real ＋ drop spot so one click adds the photo. (error doesn't bubble → capture)
+    box.addEventListener('error',function(e){
+      var im=e.target; if(im&&im.tagName==='IMG'&&im.classList.contains('cthumb')) thumbToPlus(im);
+    },true);
   }
   if(!box._supWired){ box._supWired=true; // supplier chips: × remove · ＋ add · click chip = make active
     box.addEventListener('click',function(e){
@@ -2268,6 +2287,7 @@ function openProducts(){
   refreshSelUI(box);
   renderOrdPanel();
   applyProdFilter(box);
+  setTimeout(function(){ sweepBrokenThumbs(box); },400);
 }
 /* upload a chosen file → downscale → save to products/<key>/<field>, update the cell in place */
 function handleUpload(inp){
