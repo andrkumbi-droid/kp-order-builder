@@ -6,44 +6,74 @@
 <title>KP Order Builder</title>
 <style>
   :root{
-    --bg:#0f1216; --panel:#171b21; --panel2:#1e242c; --line:#2a323c;
-    --txt:#e7ecf2; --muted:#93a1b0; --accent:#3b82f6; --accent2:#22c55e;
-    --danger:#ef4444; --chip:#232a33; --radius:12px;
+    --bg:#0b0e14; --panel:#151a23; --panel2:#1d2431; --line:#28313f;
+    --txt:#e8edf4; --muted:#8fa0b3; --accent:#4f8ef7; --accent2:#2fc46e;
+    --danger:#ef4444; --chip:#232c3a; --radius:12px; --sidew:200px; --navh:58px;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.4 system-ui,Segoe UI,Roboto,Arial,sans-serif}
+  body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.45 system-ui,Segoe UI,Roboto,Arial,sans-serif}
   button{font:inherit;cursor:pointer}
   input,select,textarea{font:inherit}
   .hide{display:none!important}
 
-  /* top bar */
-  .top{display:flex;gap:10px;align-items:center;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20;flex-wrap:wrap}
-  .top h1{font-size:16px;margin:0;font-weight:700;letter-spacing:.3px}
-  .top h1 span{color:var(--accent)}
-  .top .grow{flex:1}
-  .ordname{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px 10px;min-width:180px}
-  .btn{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px 12px}
-  .btn:hover{border-color:var(--accent)}
-  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-  .btn.green{background:var(--accent2);border-color:var(--accent2);color:#04220f}
-  .btn.ghost{background:transparent}
-  .cloud{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
-  .dot{width:8px;height:8px;border-radius:50%;background:#6b7280}
+  /* ---- app shell: left sidebar + page area ---- */
+  .shell{display:flex;min-height:100vh}
+  .side{width:var(--sidew);flex:none;background:#0d1117;border-right:1px solid var(--line);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;z-index:40}
+  .side .brand{padding:16px 16px 13px;border-bottom:1px solid var(--line);font-size:15px;font-weight:800;letter-spacing:.3px;line-height:1.2}
+  .side .brand span{color:var(--accent)}
+  .side .brand small{display:block;margin-top:3px;color:var(--muted);font-weight:600;font-size:9px;letter-spacing:1.6px;text-transform:uppercase}
+  .nav{display:flex;flex-direction:column;gap:3px;padding:10px 9px;flex:1}
+  .navbtn{display:flex;align-items:center;gap:11px;width:100%;padding:10px 12px;border:none;border-radius:10px;background:none;color:var(--muted);font-size:13px;font-weight:600;text-align:left;transition:.13s}
+  .navbtn:hover{background:var(--panel);color:var(--txt)}
+  .navbtn.on{background:linear-gradient(90deg,rgba(79,142,247,.17),rgba(79,142,247,.03));color:var(--txt);box-shadow:inset 2.5px 0 0 var(--accent)}
+  .navbtn .ic{font-size:17px;width:22px;text-align:center;flex:none}
+  .nav .navsep{margin:8px 6px 5px;padding-top:8px;border-top:1px solid var(--line);color:var(--muted);font-size:9px;letter-spacing:1.4px;text-transform:uppercase;font-weight:700}
+  .side .foot{padding:12px 16px;border-top:1px solid var(--line)}
+  .cloud{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:7px}
+  .dot{width:8px;height:8px;border-radius:50%;background:#6b7280;flex:none}
   .dot.ok{background:var(--accent2)} .dot.err{background:var(--danger)}
 
+  main.pagearea{flex:1;min-width:0;display:flex;flex-direction:column}
+  .pagehead{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 16px;background:rgba(13,17,23,.9);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+  .pagehead h1{font-size:15px;margin:0 10px 0 0;font-weight:800;white-space:nowrap}
+  .pagehead .grow{flex:1}
+  .btngrp{display:flex;gap:6px;align-items:center}
+  .btngrp+.btngrp{margin-left:6px;padding-left:12px;border-left:1px solid var(--line)}
+  .ordname{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:8px 11px;min-width:190px}
+  .ordname:focus{outline:none;border-color:var(--accent)}
+  .btn{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:9px;padding:8px 12px;transition:.13s}
+  .btn:hover{border-color:var(--accent)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.green{background:var(--accent2);border-color:var(--accent2);color:#03210f;font-weight:700}
+  .btn.ghost{background:transparent}
+
+  /* small screens: sidebar becomes a bottom icon bar */
+  @media(max-width:860px){
+    .side{position:fixed;top:auto;bottom:0;left:0;right:0;width:auto;height:var(--navh);flex-direction:row;align-items:stretch;border-right:none;border-top:1px solid var(--line)}
+    .side .brand{display:none}
+    .nav{flex-direction:row;padding:5px 6px;gap:4px;flex:1}
+    .nav .navsep{display:none}
+    .navbtn{flex-direction:column;justify-content:center;gap:2px;font-size:9px;padding:4px 2px;border-radius:8px}
+    .navbtn.on{box-shadow:inset 0 -2.5px 0 var(--accent);background:none}
+    .navbtn .ic{width:auto}
+    .side .foot{border-top:none;display:flex;align-items:center;padding:0 10px}
+    .side .foot .cloud #cloudTxt{display:none}
+    main.pagearea{padding-bottom:var(--navh)}
+  }
+
   /* layout */
-  .wrap{display:grid;grid-template-columns:minmax(360px,1fr) minmax(420px,1.15fr);gap:0;min-height:calc(100vh - 55px)}
+  .wrap{display:grid;grid-template-columns:minmax(360px,1fr) minmax(420px,1.15fr);gap:0;flex:1}
   @media(max-width:900px){.wrap{grid-template-columns:1fr}}
   .composer{padding:16px;border-right:1px solid var(--line);overflow:auto}
-  .board{padding:16px;background:#12161b;overflow:auto}
+  .board{padding:16px;background:#10141b;overflow:auto}
 
-  .step{margin-bottom:18px}
-  .step h2{font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin:0 0 8px;display:flex;align-items:center;gap:8px}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 14px;margin-bottom:12px}
+  .step h2{font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin:0 0 10px;display:flex;align-items:center;gap:8px}
   .step h2 .num{background:var(--chip);color:var(--txt);width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px}
   .step h2 .pick{margin-left:auto;color:var(--accent2);font-weight:600;text-transform:none;letter-spacing:0}
 
   .tiles{display:flex;gap:8px;flex-wrap:wrap}
-  .tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px;width:112px;text-align:center;position:relative;transition:.12s}
+  .tile{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px;width:112px;text-align:center;position:relative;transition:.12s}
   .tile:hover{border-color:var(--accent)}
   .tile.sel{border-color:var(--accent2);box-shadow:0 0 0 1px var(--accent2) inset}
   .tile .thumb{width:96px;height:72px;border-radius:6px;object-fit:cover;background:#0c0f13;display:block;margin:0 auto 6px}
@@ -63,12 +93,13 @@
   .tile[data-kind="panel"] .thumb{object-fit:contain}
 
   .qtyrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-  .qtyrow input[type=number]{width:130px;padding:10px;border-radius:8px;background:var(--panel);border:1px solid var(--line);color:var(--txt);font-size:16px;font-weight:700}
-  .field{padding:10px;border-radius:8px;background:var(--panel);border:1px solid var(--line);color:var(--txt);width:100%}
+  .qtyrow input[type=number]{width:130px;padding:10px;border-radius:8px;background:var(--panel2);border:1px solid var(--line);color:var(--txt);font-size:16px;font-weight:700}
+  .field{padding:10px;border-radius:8px;background:var(--panel2);border:1px solid var(--line);color:var(--txt);width:100%}
+  .field:focus{outline:none;border-color:var(--accent)}
 
   /* accessories */
   .acc{display:flex;flex-direction:column;gap:8px}
-  .accrow{display:flex;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px}
+  .accrow{display:flex;gap:10px;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px}
   .accrow.off{opacity:.5}
   .accrow img{width:48px;height:36px;object-fit:cover;border-radius:5px;background:#0c0f13}
   .accrow .an{flex:1}
@@ -77,14 +108,14 @@
   .accrow input.code{width:90px}
   .accrow input.q{width:80px}
   .accrow .pct{font-size:11px;color:var(--muted);white-space:nowrap}
-  .accrow input.code,.accrow input.q{padding:7px;border-radius:6px;background:var(--panel2);border:1px solid var(--line);color:var(--txt)}
-  .accrow .tg{width:22px;height:22px;border-radius:6px;border:1px solid var(--line);background:var(--panel2);display:flex;align-items:center;justify-content:center;color:var(--accent2);font-weight:800}
+  .accrow input.code,.accrow input.q{padding:7px;border-radius:6px;background:var(--bg);border:1px solid var(--line);color:var(--txt)}
+  .accrow .tg{width:22px;height:22px;border-radius:6px;border:1px solid var(--line);background:var(--bg);display:flex;align-items:center;justify-content:center;color:var(--accent2);font-weight:800}
   .accrow.off .tg{color:transparent}
 
   .addline{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 30%);padding-top:14px;margin-top:6px}
 
   /* quick add by code */
-  .quickadd{background:linear-gradient(135deg,#16273c,#171b21);border:1px solid var(--accent);border-radius:12px;padding:12px 14px;margin-bottom:18px}
+  .quickadd{background:linear-gradient(135deg,#14263e,#151a23);border:1px solid var(--accent);border-radius:14px;padding:12px 14px;margin-bottom:12px}
   .quickadd h2{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--accent);display:flex;align-items:center;gap:6px}
   .quickadd input.field{font-size:16px;font-weight:600}
   .qa-card{display:flex;gap:10px;align-items:center;margin-top:10px;background:var(--panel);border:1px solid var(--accent2);border-radius:10px;padding:8px}
@@ -142,9 +173,10 @@
   .ptable .supill:hover .supx{opacity:.85}
   .ptable .supadd{background:transparent;border:1px dashed var(--line);color:var(--muted);border-radius:12px;width:22px;height:20px;line-height:1;padding:0;font-size:13px;vertical-align:middle}
   .ptable .supadd:hover{border-color:var(--accent);color:var(--accent)}
-  /* Products as a full page (not a dialog) */
-  #prodOverlay{background:var(--bg);padding:0}
-  #prodOverlay>.modal{width:100%;max-width:100%;height:100vh;max-height:100vh;border:none;border-radius:0;display:flex;flex-direction:column;padding:12px 16px}
+  /* Products as a full page (not a dialog) — sits right of the sidebar */
+  #prodOverlay{background:var(--bg);padding:0;left:var(--sidew)}
+  #prodOverlay>.modal{width:100%;max-width:100%;height:100%;max-height:100%;border:none;border-radius:0;display:flex;flex-direction:column;padding:12px 16px}
+  @media(max-width:860px){#prodOverlay{left:0;bottom:var(--navh)}}
   /* new-order side panel on the Products page */
   .prodmain{display:flex;flex:1;min-height:0;gap:12px}
   .prodleft{display:flex;flex-direction:column;flex:1;min-width:0}
@@ -181,7 +213,7 @@
   .board h2{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin:0 0 12px;display:flex;align-items:center;gap:8px}
   .board h2 .count{background:var(--accent);color:#fff;border-radius:20px;padding:1px 8px;font-size:12px}
   .cards{display:flex;flex-direction:column;gap:12px}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;grid-template-columns:88px 1fr auto;gap:12px;position:relative}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;display:grid;grid-template-columns:88px 1fr auto;gap:12px;position:relative;box-shadow:0 2px 10px rgba(0,0,0,.22)}
   .card .qtytop{position:absolute;top:-9px;left:12px;background:var(--accent2);color:#04220f;font-weight:800;font-size:12px;padding:2px 10px;border-radius:20px}
   .card .pimg{width:88px;height:88px;object-fit:cover;border-radius:8px;background:#0c0f13}
   .card .mid{min-width:0}
@@ -209,9 +241,10 @@
   .modal .foot{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
 
 
-  /* ---- price comparison page ---- */
-  #priceOverlay{background:var(--bg);padding:0}
-  #priceOverlay>.modal{width:100%;max-width:100%;height:100vh;max-height:100vh;border:none;border-radius:0;display:flex;flex-direction:column;padding:12px 16px}
+  /* ---- price comparison page — sits right of the sidebar ---- */
+  #priceOverlay{background:var(--bg);padding:0;left:var(--sidew)}
+  #priceOverlay>.modal{width:100%;max-width:100%;height:100%;max-height:100%;border:none;border-radius:0;display:flex;flex-direction:column;padding:12px 16px}
+  @media(max-width:860px){#priceOverlay{left:0;bottom:var(--navh)}}
   .pxhead{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
   .pxhead .price{width:66px;padding:5px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);color:var(--txt)}
   .pxhint{font-size:12px;color:var(--muted)}
@@ -314,22 +347,38 @@
 </head>
 <body>
 
-<div class="top">
-  <h1>KP <span>Order Builder</span></h1>
+<div class="shell">
+<nav class="side">
+  <div class="brand">KP <span>Order Builder</span><small>Supplier orders</small></div>
+  <div class="nav">
+    <button class="navbtn" data-nav="products"><span class="ic">📦</span> Products</button>
+    <button class="navbtn" data-nav="order"><span class="ic">🛠️</span> Order builder</button>
+    <button class="navbtn" data-nav="prices"><span class="ic">📊</span> Prices</button>
+    <div class="navsep">Tools</div>
+    <button class="navbtn" id="btnPhotos"><span class="ic">📷</span> Catalog photos</button>
+  </div>
+  <div class="foot"><span class="cloud"><span class="dot" id="cloudDot"></span><span id="cloudTxt">connecting…</span></span></div>
+</nav>
+
+<main class="pagearea">
+<div class="pagehead">
+  <h1>🛠️ Order</h1>
   <input id="ordName" class="ordname" placeholder="Order name / PO no."/>
   <div class="grow"></div>
-  <button class="btn ghost" id="btnNew">New order</button>
-  <button class="btn" id="btnImport">Import PI</button>
-  <button class="btn" id="btnDrive">⛁ Drive</button>
-  <input type="file" id="importFile" accept=".xlsx" multiple style="display:none">
-  <button class="btn" id="btnLoad">Open</button>
-  <button class="btn" id="btnSave">Save</button>
-  <button class="btn" id="btnProducts">📋 Products</button>
-  <button class="btn" id="btnPrices">📊 Prices</button>
-  <button class="btn" id="btnPhotos">📷 Catalog</button>
-  <button class="btn primary" id="btnPdf">🖨️ Print sheet</button>
-  <button class="btn green" id="btnXls">Export Excel</button>
-  <span class="cloud"><span class="dot" id="cloudDot"></span><span id="cloudTxt">connecting…</span></span>
+  <div class="btngrp">
+    <button class="btn ghost" id="btnNew">＋ New</button>
+    <button class="btn" id="btnLoad">📂 Open</button>
+    <button class="btn" id="btnSave">💾 Save</button>
+  </div>
+  <div class="btngrp">
+    <button class="btn" id="btnImport">📥 Import PI</button>
+    <button class="btn" id="btnDrive">⛁ Drive</button>
+    <input type="file" id="importFile" accept=".xlsx" multiple style="display:none">
+  </div>
+  <div class="btngrp">
+    <button class="btn primary" id="btnPdf">🖨️ Print sheet</button>
+    <button class="btn green" id="btnXls">Export Excel</button>
+  </div>
 </div>
 
 <div class="wrap">
@@ -391,6 +440,8 @@
     <h2>Order board <span class="count" id="lineCount">0</span> <span style="margin-left:auto;font-size:11px;color:var(--muted)" class="noprint">click a card to edit</span></h2>
     <div class="cards" id="cards"></div>
   </div>
+</div>
+</main>
 </div>
 
 <!-- generic add modal -->
@@ -1607,7 +1658,7 @@ function openProducts(){
     '<input class="field" id="pSearch" placeholder="search…" style="flex:1;min-width:130px">'+
     '<label style="font-size:12px;color:var(--muted);white-space:nowrap">USD→THB <input class="price" id="thbRateInp" type="number" step="0.1" value="'+esc(thbRate)+'"></label>'+
     '<button class="btn green" id="pExport">Export list</button>'+
-    '<button class="btn" id="pClose">🔧 Builder →</button></div>'+
+    '<button class="btn" id="pClose">🛠️ Order builder →</button></div>'+
     '<div class="prodmain">'+
       '<div class="prodleft">'+
         '<div class="prodtools">'+
@@ -1629,7 +1680,7 @@ function openProducts(){
       '</div>'+
     '</div>';
   el('prodOverlay').classList.remove('hide');
-  el('pClose').onclick=function(){ location.hash='build'; };
+  el('pClose').onclick=function(){ location.hash='order'; };
   el('pSearch').oninput=function(){ applyProdFilter(box); };
   el('pToggleAll').onclick=function(){ prodShowAll=!prodShowAll; applyProdFilter(box); };
   el('thbRateInp').onchange=function(){ thbRate=parseFloat(this.value)||thbRate; if(db) db.ref(OB+'/settings/thbRate').set(thbRate); recalcBaht(box); };
@@ -1638,7 +1689,7 @@ function openProducts(){
     order.lines=order.lines.filter(function(l){ return !(l&&l._fromPick); }); // drop tick-added lines
     prodSel=[]; refreshSelUI(box); renderOrdPanel(); renderCards(); saveLocal();
   };
-  el('pBuild').onclick=function(){ location.hash='build'; setTimeout(function(){ el('qCode').focus(); },50); };
+  el('pBuild').onclick=function(){ location.hash='order'; setTimeout(function(){ el('qCode').focus(); },50); };
   el('pAccOnly').onclick=addAccOnly;
   el('pSendSupplier').onclick=exportExcel;
   Array.prototype.forEach.call(box.querySelectorAll('input.price[data-pkey]'),function(inp){
@@ -1828,19 +1879,28 @@ function recalcBaht(box){
     var v=inp.value.trim(), cell=inp.parentNode.nextElementSibling; if(cell) cell.textContent=v===''?'':('฿'+bahtOf(parseFloat(v)||0));
   });
 }
-/* Products is the home page; the composer/builder lives behind #build */
-function showComposerPage(){ if(el('prodOverlay')) el('prodOverlay').classList.add('hide'); document.querySelector('.composer').scrollIntoView({behavior:'smooth'}); }
-el('btnProducts').onclick=function(){ if(location.hash) location.hash=''; else openProducts(); }; // back to home
-el('btnPrices').onclick=function(){ if(location.hash==='#prices') location.hash=''; else location.hash='prices'; };
+/* Products is the home page; the order builder lives behind #order (legacy alias #build) */
+function showComposerPage(){ if(el('prodOverlay')) el('prodOverlay').classList.add('hide'); }
+function setNav(name){
+  Array.prototype.forEach.call(document.querySelectorAll('.navbtn[data-nav]'),function(b){
+    b.classList.toggle('on', b.getAttribute('data-nav')===name);
+  });
+}
+Array.prototype.forEach.call(document.querySelectorAll('.navbtn[data-nav]'),function(b){
+  b.onclick=function(){
+    var n=b.getAttribute('data-nav'), target=(n==='products'?'':'#'+n);
+    if((location.hash||'')===target) pxRoute(); else location.hash=target;
+  };
+});
 function pxRoute(){
   var h=location.hash;
-  if(h==='#prices'){ openPrices(); return; }          // openPrices hides the Products page
+  if(h==='#prices'){ openPrices(); setNav('prices'); return; }   // openPrices hides the Products page
   if(el('priceOverlay')) el('priceOverlay').classList.add('hide');
-  if(h==='#build') showComposerPage();
-  else openProducts(); // '' (home) and #products both show Products
+  if(h==='#order'||h==='#build'){ showComposerPage(); setNav('order'); }
+  else { openProducts(); setNav('products'); }                    // '' (home) and #products both show Products
 }
 window.addEventListener('hashchange',pxRoute);
-if(location.hash!=='#build') setTimeout(pxRoute,300); // default landing = Products
+setTimeout(pxRoute,300); // default landing = Products
 
 function exportProducts(){
   var list=prodVisibleList(); if(!list.length) return alert('No products.');
