@@ -364,7 +364,19 @@
   .pscard .pscolor img{width:calc(36px*var(--fs,1));height:calc(36px*var(--fs,1));object-fit:cover;border-radius:5px;border:1px solid #e3e6ea;background:#eef0f2;flex:none}
   .pscard .pscname{font-size:calc(12px*var(--fs,1));font-weight:700;line-height:1.25;min-width:0}
   .pscard .pscname small{display:block;font-weight:400;color:#666}
-  .pscard .psqty{margin-top:8px;display:inline-block;background:#111;color:#fff;font-weight:800;font-size:calc(14px*var(--fs,1));padding:3px 12px;border-radius:20px}
+  .pscard .psqty{display:inline-block;background:#111;color:#fff;font-weight:800;font-size:calc(14px*var(--fs,1));padding:3px 12px;border-radius:20px;white-space:nowrap}
+  /* qty pill + an empty box to write the real colour in by hand */
+  .pscard .psqrow{display:flex;align-items:stretch;gap:10px;margin-top:8px}
+  .pscard .psqrow .psqty{align-self:center}
+  .pscard .pswrite{flex:1;min-width:70px;min-height:calc(26px*var(--fs,1));border:1.5px solid #111;border-radius:4px;padding:2px 7px;font-size:calc(13px*var(--fs,1));line-height:1.35}
+  .pspage.nowrite .pswrite{display:none}
+  /* sign-off element: pay ticks + a name line */
+  .pssign{display:flex;align-items:flex-end;justify-content:space-between;gap:22px;height:100%;box-sizing:border-box;padding-top:6px;border-top:1px solid #bbb}
+  .pssign .psname{font-size:calc(12px*var(--fs,1));white-space:nowrap}
+  .pssign .psname .psline{display:inline-block;min-width:150px;border-bottom:1px solid #111;padding:0 5px}
+  .pssign .pschecks{display:flex;flex-direction:column;gap:9px}
+  .pssign .pschk{display:flex;align-items:center;gap:9px;font-size:calc(12px*var(--fs,1))}
+  .pssign .pschk i{width:calc(16px*var(--fs,1));height:calc(16px*var(--fs,1));border:1.5px solid #111;border-radius:3px;flex:none;display:block}
   .pscard .psaccs{margin-top:8px;display:flex;flex-wrap:wrap;gap:5px}
   .pscard .psaccs>.psacc{font-size:calc(11px*var(--fs,1));background:#f0f2f4;border:1px solid #e0e4e8;border-radius:5px;padding:2px 7px;color:#333}
   .pscard .psaccs>.psacc b{color:#111}
@@ -373,7 +385,8 @@
 
   /* heading element */
   .pshead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;border-bottom:2px solid #111;padding-bottom:8px}
-  .pshead .pst{font-size:calc(22px*var(--fs,1));font-weight:800;letter-spacing:.3px}
+  .pshead .pshl{flex:1}
+  .pshead .pst{font-size:calc(22px*var(--fs,1));font-weight:800;letter-spacing:.3px;text-align:center}
   .pshead .pssub{font-size:calc(12px*var(--fs,1));color:#555;margin-top:3px}
   .pshead .psstat{text-align:right;font-size:calc(12px*var(--fs,1));color:#333;white-space:nowrap;line-height:1.5}
   .pshead .psstat b{font-size:calc(16px*var(--fs,1));color:#111}
@@ -533,6 +546,7 @@
         <button class="btn" id="psText" title="add a free text box">＋ Text</button>
         <button class="btn" id="psImg" title="place a photo on the sheet">＋ Image</button>
         <input type="file" accept="image/*" id="psImgFile" style="display:none">
+        <button class="btn" id="psSign" title="pay ticks + name line">＋ Sign-off</button>
         <button class="btn" id="psAddPage" title="add another sheet">＋ Page</button>
       </span>
       <span class="psgrp">
@@ -540,6 +554,7 @@
         <button class="btn" id="psCols" title="cards per row when auto-arranging">▦ auto (2)</button>
         <button class="btn" id="psArrange" title="lay everything out in a clean grid again">⟲ Auto-arrange</button>
         <button class="btn" id="psGridT" title="alignment grid (screen only)">⊞ Grid</button>
+        <button class="btn" id="psWriteT" title="empty box on each card to write the colour in by hand">✎ Colour box</button>
       </span>
       <span class="psgrp">
         <button class="btn" id="psFsMinus" title="smaller text on the whole sheet">A−</button>
@@ -1086,13 +1101,18 @@ var PPMM=96/25.4;                  // CSS px per millimetre
 var PS_PHB={1:130,2:104,3:80};     // photo size per cards-per-row
 var psSheet=null, psSelId=null, psZTop=1, psZoomF=1, psIdN=0, psDragging=null;
 
-/* sheet prefs (orientation, text size, bold, cards-per-row, grid) — kept in localStorage */
-var psPrefs={orient:'portrait',fs:1,bold:false,cols:0,grid:false};
+/* sheet prefs (orientation, text size, bold, cards-per-row, grid, write-in box) — kept in localStorage.
+   PS_PREF_V is bumped whenever the house default changes, so everyone gets the new look once. */
+var PS_PREF_V=2, PS_SHEET_V=2;
+var psPrefs={orient:'portrait',fs:1.8,bold:false,cols:1,grid:false,writeBox:true};
 try{ var _pp=JSON.parse(localStorage.getItem('kp-ob-psprefs')||'{}');
-  if(_pp.orient==='landscape') psPrefs.orient='landscape';
-  if(_pp.fs>=0.7&&_pp.fs<=1.8) psPrefs.fs=_pp.fs;
-  psPrefs.bold=!!_pp.bold; psPrefs.grid=!!_pp.grid;
-  if(_pp.cols>=1&&_pp.cols<=3) psPrefs.cols=_pp.cols|0;
+  if(_pp.v===PS_PREF_V){                       // older saved settings → fall back to the new default
+    if(_pp.orient==='landscape') psPrefs.orient='landscape';
+    if(_pp.fs>=0.7&&_pp.fs<=1.8) psPrefs.fs=_pp.fs;
+    psPrefs.bold=!!_pp.bold; psPrefs.grid=!!_pp.grid;
+    psPrefs.writeBox=_pp.writeBox!==false;
+    if(_pp.cols>=1&&_pp.cols<=3) psPrefs.cols=_pp.cols|0;
+  }
 }catch(e){}
 
 function psNewId(){ return 'e'+Date.now().toString(36)+(psIdN++); }
@@ -1124,7 +1144,12 @@ function psHeadEl(){
   var sup=(order.printSupplier!=null&&order.printSupplier!=='')?order.printSupplier:psSupplier(panels);
   sup=String(sup||'').replace(/&#\d+;?/g,' ').replace(/[\r\n\t]+/g,' ').replace(/\s{2,}/g,' ').trim(); // drop PI cell junk
   return { id:psNewId(), t:'head', x:0,y:0,w:0,h:0,r:0,z:1,fs:1,bold:false,
-    sup:sup, ctn:order.containerNo||'', date:new Date().toLocaleDateString() };
+    sup:sup, ctn:order.containerNo||'' };
+}
+/* sign-off block: tick deposit / balance and write who ordered it */
+function psFootEl(){
+  return { id:psNewId(), t:'foot', x:0,y:0,w:0,h:0,r:0,z:1,fs:1,bold:false,
+    nlabel:'Name', name:'', c1:'Deposit paid', c2:'Balance paid' };
 }
 /* signature of the order — when it changes, the sheet is rebuilt instead of restored */
 function psSig(){ return (order.lines||[]).map(function(l){ return (l.code||'')+(l._accOnly?'#a':'#p'); }).join('|'); }
@@ -1153,16 +1178,25 @@ function psInner(e){
           '<span class="pscname"><span contenteditable="true" data-f="colTxt" data-ph="colour / book">'+esc(e.colTxt||'')+'</span>'+
           '<small contenteditable="true" data-f="colSub" data-ph="page · no.">'+esc(e.colSub||'')+'</small></span>'+
         '</div>'+
-        '<span class="psqty"><span class="psqn" contenteditable="true" data-f="qty" data-ph="qty">'+esc(e.qty||'')+'</span> pcs</span>'+
+        '<div class="psqrow"><span class="psqty"><span class="psqn" contenteditable="true" data-f="qty" data-ph="qty">'+esc(e.qty||'')+'</span> pcs</span>'+
+          '<div class="pswrite" contenteditable="true" data-f="note" data-ph="colour"></div></div>'+
         '<div class="psaccs">'+psAccHtml(e)+'</div>'+
       '</div></div>';
   }
   if(e.t==='head'){
     return '<div class="pelin pshead"><div class="pshl">'+
       '<div class="pst" contenteditable="true" data-f="sup" data-ph="Supplier name">'+esc(e.sup||'')+'</div>'+
-      '<div class="pssub">Container&nbsp;No.&nbsp;<span class="psctn" contenteditable="true" data-f="ctn" data-ph="…">'+esc(e.ctn||'')+'</span>'+
-        '<span class="psdate"> · '+esc(e.date||'')+'</span></div></div>'+
-      '<div class="psstat"></div></div>';
+      '<div class="pssub">Container&nbsp;No.&nbsp;<span class="psctn" contenteditable="true" data-f="ctn" data-ph="…">'+esc(e.ctn||'')+'</span></div>'+
+      '</div></div>';
+  }
+  if(e.t==='foot'){
+    return '<div class="pelin pssign">'+
+      '<div class="psname"><span contenteditable="true" data-f="nlabel">'+esc(e.nlabel||'Name')+'</span>: '+
+        '<span class="psline" contenteditable="true" data-f="name" data-ph="&nbsp;">'+esc(e.name||'')+'</span></div>'+
+      '<div class="pschecks">'+
+        '<div class="pschk"><i></i><span contenteditable="true" data-f="c1">'+esc(e.c1||'Deposit paid')+'</span></div>'+
+        '<div class="pschk"><i></i><span contenteditable="true" data-f="c2">'+esc(e.c2||'Balance paid')+'</span></div>'+
+      '</div></div>';
   }
   if(e.t==='img'){
     return '<div class="pelin pselimg'+(e.src?' has':'')+'">'+(e.src?'<img src="'+esc(e.src)+'">':'<span class="phold">no photo</span>')+'</div>';
@@ -1193,7 +1227,7 @@ function psApplyElStyle(e){ var n=psNode(e.id); if(n) n.setAttribute('style',psE
 /* ----- render ----- */
 function psRender(){
   var doc=el('psDoc'); if(!doc||!psSheet) return;
-  var cls=(psPrefs.orient==='landscape'?' land':'')+(psPrefs.bold?' psbold':'')+(psPrefs.grid?' showgrid':'');
+  var cls=(psPrefs.orient==='landscape'?' land':'')+(psPrefs.bold?' psbold':'')+(psPrefs.grid?' showgrid':'')+(psPrefs.writeBox?'':' nowrite');
   var nCards=psAllEls().filter(function(e){ return e.t==='card'; }).length;
   doc.innerHTML=psSheet.pages.map(function(pg,i){
     return '<div class="pswrap">'+
@@ -1237,12 +1271,14 @@ function psAutoArrange(){
   if(!psSheet) return;
   var all=psAllEls();
   var head=all.filter(function(e){ return e.t==='head'; });
-  var rest=all.filter(function(e){ return e.t!=='head'; });
+  var foot=all.filter(function(e){ return e.t==='foot'; });
+  var rest=all.filter(function(e){ return e.t!=='head'&&e.t!=='foot'; });
   var c=psCanvasPx(), cols=psColsN(), gap=12;
   var colW=Math.floor((c.w-gap*(cols-1))/cols);
   head.forEach(function(e){ e.x=0; e.y=0; e.w=c.w; e.h=0; e.r=0; e.z=1; });
+  foot.forEach(function(e){ e.x=0; e.w=c.w; e.h=0; e.r=0; e.z=1; });
   rest.forEach(function(e){ e.x=0; e.r=0; e.w=(e.t==='card'?colW:(e.t==='img'?Math.min(colW,220):c.w)); if(e.t!=='img') e.h=0; });
-  psSheet.pages=[{els:head.concat(rest)}];
+  psSheet.pages=[{els:head.concat(rest).concat(foot)}];
   psRender(); psMeasure();                       // real heights for the current width
   var pages=[{els:head.slice()}], pi=0;
   var y=head.length?(head[0].h+18):0, col=0, rowH=0;
@@ -1257,6 +1293,13 @@ function psAutoArrange(){
     if(y+e.h>c.h && pages[pi].els.length){ pi++; pages[pi]={els:[]}; y=0; col=0; rowH=0; }
     e.x=col*(colW+gap); e.y=y;
     pages[pi].els.push(e); rowH=Math.max(rowH,e.h); col++;
+  });
+  // the sign-off block sits at the very bottom of the last page (its own page if nothing fits)
+  foot.forEach(function(e){
+    var last=pages[pages.length-1], bottom=0;
+    (last.els||[]).forEach(function(o){ if(o.t!=='head') bottom=Math.max(bottom,o.y+(o.h||0)); });
+    if(bottom>c.h-e.h-14){ pages.push({els:[]}); last=pages[pages.length-1]; }
+    e.y=c.h-e.h; last.els.push(e);
   });
   psSheet.pages=pages;
   psRender(); psSave();
@@ -1518,18 +1561,18 @@ function psWire(){
 function openPrintSheet(){
   el('printSheet').classList.remove('hide');
   var saved=order.sheet;
-  if(saved&&saved.pages&&saved.pages.length&&saved.sig===psSig()){
+  if(saved&&saved.pages&&saved.pages.length&&saved.sig===psSig()&&saved.v===PS_SHEET_V){
     psSheet=saved;
     psZTop=Math.max.apply(null,[1].concat(psAllEls().map(function(e){ return e.z||1; })));
     psSelId=null; psRefreshMedia(); psApplyPrefs();
   }else{
-    psSheet={ sig:psSig(), pages:[{els:[psHeadEl()].concat(psElsFromOrder())}] };
+    psSheet={ sig:psSig(), v:PS_SHEET_V, pages:[{els:[psHeadEl()].concat(psElsFromOrder()).concat([psFootEl()])}] };
     psSelId=null; psApplyPrefs(); psAutoArrange();
   }
   psWire();
 }
 function psApplyPrefs(){
-  try{ localStorage.setItem('kp-ob-psprefs',JSON.stringify(psPrefs)); }catch(e){}
+  try{ psPrefs.v=PS_PREF_V; localStorage.setItem('kp-ob-psprefs',JSON.stringify(psPrefs)); }catch(e){}
   var st=el('psPageStyle');
   if(!st){ st=document.createElement('style'); st.id='psPageStyle'; document.head.appendChild(st); }
   st.textContent='@media print{@page{size:A4 '+psPrefs.orient+';margin:0}}';   // page padding = the print margin
@@ -1538,6 +1581,7 @@ function psApplyPrefs(){
   el('psFsVal').textContent=Math.round(psPrefs.fs*100)+'%';
   el('psBold').classList.toggle('on',!!psPrefs.bold);
   el('psGridT').classList.toggle('on',!!psPrefs.grid);
+  el('psWriteT').classList.toggle('on',!!psPrefs.writeBox);
   if(psSheet && psSheet.orient && psSheet.orient!==psPrefs.orient){ psClampToPage(); psSheet.orient=psPrefs.orient; psSave(); }
   if(psSheet) psSheet.orient=psPrefs.orient;
   psRender();
@@ -1567,6 +1611,12 @@ el('psImgFile').onchange=function(){
     else psAddImage(dataUrl);
   });
 };
+el('psSign').onclick=function(){
+  var e=psFootEl(), c=psCanvasPx();
+  e.w=c.w; e.h=0; psAddEl(e);
+  var f=psGet(e.id); if(f){ f.x=0; f.y=Math.max(0,c.h-(f.h||60)); psApplyElStyle(f); psSave(); }  // park it at the bottom
+};
+el('psWriteT').onclick=function(){ psPrefs.writeBox=!psPrefs.writeBox; psApplyPrefs(); };
 el('psAddPage').onclick=psAddPage;
 el('psOrient').onclick=function(){ psPrefs.orient=(psPrefs.orient==='landscape'?'portrait':'landscape'); psApplyPrefs(); };
 el('psCols').onclick=function(){ psPrefs.cols=(psPrefs.cols+1)%4; psApplyPrefs(); };   // auto → 1 → 2 → 3 → auto
