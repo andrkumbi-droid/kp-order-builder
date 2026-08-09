@@ -552,7 +552,7 @@
       <span class="psgrp">
         <button class="btn" id="psOrient">⬒ Landscape</button>
         <button class="btn" id="psCols" title="cards per row when auto-arranging">▦ auto (2)</button>
-        <button class="btn" id="psArrange" title="lay everything out in a clean grid again">⟲ Auto-arrange</button>
+        <button class="btn" id="psArrange" title="lay everything out again as large as possible on one page">⤢ Fit one page</button>
         <button class="btn" id="psGridT" title="alignment grid (screen only)">⊞ Grid</button>
         <button class="btn" id="psWriteT" title="empty box on each card to write the colour in by hand">✎ Colour box</button>
       </span>
@@ -1103,12 +1103,12 @@ var psSheet=null, psSelId=null, psZTop=1, psZoomF=1, psIdN=0, psDragging=null;
 
 /* sheet prefs (orientation, text size, bold, cards-per-row, grid, write-in box) — kept in localStorage.
    PS_PREF_V is bumped whenever the house default changes, so everyone gets the new look once. */
-var PS_PREF_V=2, PS_SHEET_V=2;
-var psPrefs={orient:'portrait',fs:1.8,bold:false,cols:1,grid:false,writeBox:true};
+var PS_PREF_V=3, PS_SHEET_V=3;
+var psPrefs={orient:'portrait',fs:1.8,bold:false,cols:0,grid:false,writeBox:true};
 try{ var _pp=JSON.parse(localStorage.getItem('kp-ob-psprefs')||'{}');
   if(_pp.v===PS_PREF_V){                       // older saved settings → fall back to the new default
     if(_pp.orient==='landscape') psPrefs.orient='landscape';
-    if(_pp.fs>=0.7&&_pp.fs<=1.8) psPrefs.fs=_pp.fs;
+    if(_pp.fs>=0.6&&_pp.fs<=3) psPrefs.fs=_pp.fs;
     psPrefs.bold=!!_pp.bold; psPrefs.grid=!!_pp.grid;
     psPrefs.writeBox=_pp.writeBox!==false;
     if(_pp.cols>=1&&_pp.cols<=3) psPrefs.cols=_pp.cols|0;
@@ -1118,7 +1118,8 @@ try{ var _pp=JSON.parse(localStorage.getItem('kp-ob-psprefs')||'{}');
 function psNewId(){ return 'e'+Date.now().toString(36)+(psIdN++); }
 function psPageMM(){ return psPrefs.orient==='landscape'?{w:297,h:210}:{w:210,h:297}; }
 function psCanvasPx(){ var m=psPageMM(); return {w:Math.round((m.w-24)*PPMM), h:Math.round((m.h-24)*PPMM)}; }
-function psColsN(){ return psPrefs.cols||(psPrefs.orient==='landscape'?3:2); }
+var psAutoCols=0;   // what the one-page fitter picked while cols is on "auto"
+function psColsN(){ return psPrefs.cols||psAutoCols||(psPrefs.orient==='landscape'?3:2); }
 function psAllEls(){ var a=[]; if(psSheet) psSheet.pages.forEach(function(p){ a=a.concat(p.els||[]); }); return a; }
 function psFind(id){ var r=null; if(!psSheet||!id) return null;
   psSheet.pages.forEach(function(p,pi){ (p.els||[]).forEach(function(e,ei){ if(e.id===id) r={e:e,pi:pi,ei:ei}; }); });
@@ -1206,7 +1207,18 @@ function psInner(e){
 function psElStyle(e){
   return 'left:'+Math.round(e.x)+'px;top:'+Math.round(e.y)+'px;width:'+Math.round(e.w)+'px;'+
     (e.h?('height:'+Math.round(e.h)+'px;'):'height:auto;')+'z-index:'+(e.z||1)+';'+
-    (e.r?('transform:rotate('+e.r+'deg);'):'')+((e.fs&&e.fs!==1)?('--fs:'+e.fs+';'):'');
+    (e.r?('transform:rotate('+e.r+'deg);'):'')+((e.fs&&e.fs!==1)?('--fs:'+e.fs+';'):'')+
+    (e.phw?('--phw:'+Math.round(e.phw)+'px;'):'');
+}
+/* once the cards are placed, let each photo use the card's full height —
+   the box is already that tall because of the text, so this is free size */
+function psGrowPhotos(){
+  psAllEls().forEach(function(e){
+    if(e.t!=='card'){ return; }
+    if(!e.h){ e.phw=0; return; }
+    var side=Math.min(e.h-22, Math.round(e.w*0.45));
+    e.phw=side>30?side:0;
+  });
 }
 function psElHtml(e){
   return '<div class="pel pel-'+e.t+(e.bold?' elbold':'')+((e.t==='card'&&!e.photo)?' nophoto':'')+(e.id===psSelId?' sel':'')+
@@ -1242,6 +1254,8 @@ function psRender(){
         '</div></div></div>';
   }).join('');
   psRecalc(); psFit(); psSelUI();
+  el('psCols').textContent=psPrefs.cols?('▦ '+psPrefs.cols+' per row'):('▦ auto ('+psColsN()+')');
+  el('psFsVal').textContent=Math.round(psPrefs.fs*100)+'%';
 }
 /* elements created with h=0 are measured once, then keep an explicit height */
 function psMeasure(){
@@ -1266,9 +1280,73 @@ function psRecalc(){
 function psSave(){ if(!psSheet) return; order.sheet=psSheet; saveLocal(); }
 function psSaveLater(){ clearTimeout(psSave._t); psSave._t=setTimeout(psSave,400); }
 
+/* ----- fit on ONE page: the largest photos + code that still leave everything on a single sheet.
+   Card height follows the content, and every text/photo size scales with --fs, so "does it fit"
+   is monotone in the scale → binary-search the biggest scale, per cards-per-row candidate. ----- */
+function psRowsHeight(cards,cols,cellW,gap){
+  var total=0, i=0;
+  while(i<cards.length){
+    if(cards[i].w>cellW+1){ total+=(cards[i].h||0)+gap; i++; continue; }   // full-width block = own row
+    var rh=0, n=0;
+    while(i<cards.length && n<cols && cards[i].w<=cellW+1){ rh=Math.max(rh,cards[i].h||0); i++; n++; }
+    total+=rh+gap;
+  }
+  return total;
+}
+/* one trial: resize the already-rendered nodes and read their heights back —
+   far cheaper than rebuilding the DOM for every step of the search */
+function psFitsAt(fs,cols,cellW,rows,head,foot,cards,c,gap){
+  var page=document.querySelector('#psDoc .pspage'); if(!page) return false;
+  page.style.removeProperty('zoom');
+  page.style.setProperty('--fs',fs);
+  page.style.setProperty('--phb',(PS_PHB[cols]||104)+'px');
+  function lay(e,w){
+    var n=psNode(e.id); if(!n) return;
+    n.style.width=w+'px'; n.style.height='auto'; n.style.removeProperty('--phw');
+    e.w=w;
+  }
+  head.forEach(function(e){ lay(e,c.w); });
+  foot.forEach(function(e){ lay(e,c.w); });
+  cards.forEach(function(e){ lay(e, e.t==='card'?cellW:(e.t==='img'?Math.min(cellW,220):c.w)); });
+  function hOf(e){ var n=psNode(e.id); return n?Math.ceil(n.getBoundingClientRect().height):0; }
+  cards.forEach(function(e){ e.h=(e.t==='img'?e.h:hOf(e)); });
+  var need=(head.length?hOf(head[0])+18:0)+psRowsHeight(cards,cols,cellW,gap)+(foot.length?hOf(foot[0])+14:0);
+  return need<=c.h-4;   // same spacing the layout below uses
+}
+function psFitOnePage(){
+  if(!psSheet) return null;
+  var all=psAllEls();
+  var head=all.filter(function(e){ return e.t==='head'; });
+  var foot=all.filter(function(e){ return e.t==='foot'; });
+  var cards=all.filter(function(e){ return e.t!=='head'&&e.t!=='foot'; });
+  if(!cards.length) return null;
+  var c=psCanvasPx(), gap=12, fs0=psPrefs.fs, ac0=psAutoCols;
+  var cand=psPrefs.cols?[psPrefs.cols]:[1,2,3];
+  var best=null;
+  psSheet.pages=[{els:head.concat(cards).concat(foot)}];   // everything rendered once, then only resized
+  psAllEls().forEach(function(e){ e.x=0; e.y=0; e.r=0; e.phw=0; if(e.t!=='img') e.h=0; });
+  psRender();
+  cand.forEach(function(cols){
+    var rows=Math.ceil(cards.length/cols), cellW=Math.floor((c.w-gap*(cols-1))/cols);
+    var lo=0.6, hi=3, ok=null;
+    if(!psFitsAt(lo,cols,cellW,rows,head,foot,cards,c,gap)) return;   // doesn't fit even at the smallest
+    for(var i=0;i<7;i++){
+      var mid=Math.round(((lo+hi)/2)*100)/100;
+      if(psFitsAt(mid,cols,cellW,rows,head,foot,cards,c,gap)){ ok=mid; lo=mid; } else hi=mid;
+    }
+    if(ok==null) ok=0.6;
+    var score=(PS_PHB[cols]||104)*ok;            // photo size = what we are maximising
+    if(!best||score>best.score) best={cols:cols,fs:ok,score:score};
+  });
+  if(!best){ psPrefs.fs=fs0; psAutoCols=ac0; return null; }
+  psPrefs.fs=best.fs; psAutoCols=best.cols;
+  return best;
+}
+
 /* ----- auto-arrange: lay every element out in a clean grid, flowing onto more pages ----- */
-function psAutoArrange(){
+function psAutoArrange(noFit){
   if(!psSheet) return;
+  if(!noFit) psFitOnePage();      // biggest photos/code that still fit a single sheet
   var all=psAllEls();
   var head=all.filter(function(e){ return e.t==='head'; });
   var foot=all.filter(function(e){ return e.t==='foot'; });
@@ -1277,7 +1355,7 @@ function psAutoArrange(){
   var colW=Math.floor((c.w-gap*(cols-1))/cols);
   head.forEach(function(e){ e.x=0; e.y=0; e.w=c.w; e.h=0; e.r=0; e.z=1; });
   foot.forEach(function(e){ e.x=0; e.w=c.w; e.h=0; e.r=0; e.z=1; });
-  rest.forEach(function(e){ e.x=0; e.r=0; e.w=(e.t==='card'?colW:(e.t==='img'?Math.min(colW,220):c.w)); if(e.t!=='img') e.h=0; });
+  rest.forEach(function(e){ e.x=0; e.r=0; e.phw=0; e.w=(e.t==='card'?colW:(e.t==='img'?Math.min(colW,220):c.w)); if(e.t!=='img') e.h=0; });
   psSheet.pages=[{els:head.concat(rest).concat(foot)}];
   psRender(); psMeasure();                       // real heights for the current width
   var pages=[{els:head.slice()}], pi=0;
@@ -1302,6 +1380,7 @@ function psAutoArrange(){
     e.y=c.h-e.h; last.els.push(e);
   });
   psSheet.pages=pages;
+  psGrowPhotos();
   psRender(); psSave();
 }
 
@@ -1620,10 +1699,10 @@ el('psWriteT').onclick=function(){ psPrefs.writeBox=!psPrefs.writeBox; psApplyPr
 el('psAddPage').onclick=psAddPage;
 el('psOrient').onclick=function(){ psPrefs.orient=(psPrefs.orient==='landscape'?'portrait':'landscape'); psApplyPrefs(); };
 el('psCols').onclick=function(){ psPrefs.cols=(psPrefs.cols+1)%4; psApplyPrefs(); };   // auto → 1 → 2 → 3 → auto
-el('psArrange').onclick=psAutoArrange;
+el('psArrange').onclick=function(){ psAutoArrange(); };   // not the handler itself — the click event would land in `noFit`
 el('psGridT').onclick=function(){ psPrefs.grid=!psPrefs.grid; psApplyPrefs(); };
-el('psFsMinus').onclick=function(){ psPrefs.fs=Math.max(0.7,Math.round((psPrefs.fs-0.1)*10)/10); psApplyPrefs(); };
-el('psFsPlus').onclick=function(){ psPrefs.fs=Math.min(1.8,Math.round((psPrefs.fs+0.1)*10)/10); psApplyPrefs(); };
+el('psFsMinus').onclick=function(){ psPrefs.fs=Math.max(0.6,Math.round((psPrefs.fs-0.1)*10)/10); psApplyPrefs(); };
+el('psFsPlus').onclick=function(){ psPrefs.fs=Math.min(3,Math.round((psPrefs.fs+0.1)*10)/10); psApplyPrefs(); };
 el('psBold').onclick=function(){ psPrefs.bold=!psPrefs.bold; psApplyPrefs(); };
 el('psElFsM').onclick=function(){ psElScale(-0.1); };
 el('psElFsP').onclick=function(){ psElScale(0.1); };
