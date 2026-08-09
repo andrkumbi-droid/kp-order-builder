@@ -355,6 +355,8 @@
   /* card element (same look as before, now a free box) */
   .pscard{border:1px solid #cfd4da;border-radius:8px;padding:10px;display:grid;grid-template-columns:var(--phw,104px) 1fr;gap:12px;background:#fff}
   .pscard .psphoto{width:var(--phw,104px);height:var(--phw,104px);object-fit:cover;border-radius:6px;background:#eef0f2;border:1px solid #e3e6ea}
+  .pel.nophoto .pscard{grid-template-columns:1fr}
+  .pel.nophoto .psphoto{display:none}
   .pscard .psinfo{min-width:0}
   .pscard .pscode{font-size:calc(19px*var(--fs,1));font-weight:800;letter-spacing:.4px;line-height:1.1}
   .pscard .psmodel{font-size:calc(12px*var(--fs,1));color:#555;margin:3px 0 7px}
@@ -1141,7 +1143,7 @@ function psAccHtml(e){
 function psInner(e){
   if(e.t==='card'){
     return '<div class="pelin pscard">'+
-      (e.photo?'<img class="psphoto" src="'+esc(e.photo)+'" onerror="this.style.visibility=\'hidden\'">':'<img class="psphoto" style="visibility:hidden">')+
+      (e.photo?'<img class="psphoto" src="'+esc(e.photo)+'">':'')+
       '<div class="psinfo">'+
         '<div class="pscode" contenteditable="true" data-f="code" data-ph="Code">'+esc(e.code||'')+'</div>'+
         '<div class="psmodel" contenteditable="true" data-f="model" data-ph="material · size">'+esc(e.model||'')+'</div>'+
@@ -1173,8 +1175,18 @@ function psElStyle(e){
     (e.r?('transform:rotate('+e.r+'deg);'):'')+((e.fs&&e.fs!==1)?('--fs:'+e.fs+';'):'');
 }
 function psElHtml(e){
-  return '<div class="pel pel-'+e.t+(e.bold?' elbold':'')+(e.id===psSelId?' sel':'')+'" data-id="'+e.id+'" style="'+psElStyle(e)+'">'+
-    psInner(e)+psHandles()+'</div>';
+  return '<div class="pel pel-'+e.t+(e.bold?' elbold':'')+((e.t==='card'&&!e.photo)?' nophoto':'')+(e.id===psSelId?' sel':'')+
+    '" data-id="'+e.id+'" style="'+psElStyle(e)+'">'+psInner(e)+psHandles()+'</div>';
+}
+/* card photos/swatches always come from the catalog — so a photo you add in 📋 Products
+   shows up on the sheet too (they can't be set by hand here, so refreshing is always right) */
+function psRefreshMedia(){
+  if(!psSheet) return;
+  psAllEls().forEach(function(e){
+    if(e.t!=='card'||!e.code) return;
+    var ln={code:e.code};
+    e.photo=lnImg(ln,'prodImg'); e.sw=lnImg(ln,'colorImg'); e.bk=lnImg(ln,'bookImg');
+  });
 }
 function psApplyElStyle(e){ var n=psNode(e.id); if(n) n.setAttribute('style',psElStyle(e)); }
 
@@ -1466,6 +1478,13 @@ function psWire(){
     var d=ev.target.closest&&ev.target.closest('[data-delp]');
     if(d){ ev.preventDefault(); psDelPage(+d.getAttribute('data-delp')); }
   });
+  // a product photo that can't be loaded → drop the photo column instead of leaving a blank gap
+  doc.addEventListener('error',function(ev){
+    var im=ev.target;
+    if(im&&im.tagName==='IMG'&&im.classList.contains('psphoto')){
+      var pel=im.closest('.pel'); if(pel) pel.classList.add('nophoto');
+    }
+  },true);
   doc.addEventListener('input',function(ev){
     var t=ev.target, f=t.getAttribute&&t.getAttribute('data-f'); if(!f) return;
     var node=t.closest('.pel'), e=node&&psGet(node.getAttribute('data-id')); if(!e) return;
@@ -1502,7 +1521,7 @@ function openPrintSheet(){
   if(saved&&saved.pages&&saved.pages.length&&saved.sig===psSig()){
     psSheet=saved;
     psZTop=Math.max.apply(null,[1].concat(psAllEls().map(function(e){ return e.z||1; })));
-    psSelId=null; psApplyPrefs();
+    psSelId=null; psRefreshMedia(); psApplyPrefs();
   }else{
     psSheet={ sig:psSig(), pages:[{els:[psHeadEl()].concat(psElsFromOrder())}] };
     psSelId=null; psApplyPrefs(); psAutoArrange();
@@ -1983,7 +2002,12 @@ function photoFromFile(file,done){
     if(w>h&&w>max){h=Math.round(h*max/w);w=max;} else if(h>max){w=Math.round(w*max/h);h=max;}
     var cv=document.createElement('canvas'); cv.width=w||1; cv.height=h||1; cv.getContext('2d').drawImage(img,0,0,w,h);
     try{ done(cv.toDataURL('image/jpeg',0.72)); }catch(e){ alert('Photo error'); }
-  }; img.onerror=function(){ alert('Could not read image'); }; img.src=r.result; };
+  }; img.onerror=function(){
+    alert(/hei[cf]/i.test(file.type+' '+file.name)
+      ? 'This is an iPhone HEIC photo, which the browser cannot read.\nSet the camera to “Most Compatible” (JPEG) or convert the picture first.'
+      : 'Could not read this image ('+(file.type||'unknown type')+').\nTry a JPG or PNG.');
+  }; img.src=r.result; };
+  r.onerror=function(){ alert('Could not read the file from disk. Please try again.'); };
   r.readAsDataURL(file);
 }
 function colorGroups(){
@@ -2293,12 +2317,20 @@ function openProducts(){
 function handleUpload(inp){
   var f=inp.files&&inp.files[0]; if(!f) return;
   var k=inp.getAttribute('data-pkey'), field=inp.getAttribute('data-field'), td=inp.closest('td');
+  var lbl0=td&&td.querySelector('label.upthumb'); if(lbl0) lbl0.classList.add('uploading');
+  setCloud('','saving photo…');
   photoFromFile(f,function(dataUrl){
+    if(lbl0) lbl0.classList.remove('uploading');
     if(!dataUrl) return;
-    if(db) db.ref(OB+'/products/'+k+'/'+field).set(dataUrl);
+    if(cat.products[k]) cat.products[k][field]=dataUrl;   // other views (print sheet) see it at once
     var im=td&&td.querySelector('img.cthumb[data-field="'+field+'"]');
     if(im){ im.src=dataUrl; im.style.opacity=''; }
     else { var lbl=td&&td.querySelector('label.upthumb'); if(lbl) lbl.outerHTML=thumbImgHtml(k,field,dataUrl); }
+    if(!db){ alert('No cloud connection — the photo is only shown until you reload.'); return; }
+    db.ref(OB+'/products/'+k+'/'+field).set(dataUrl)
+      .then(function(){ setCloud('ok','photo saved'); })
+      .catch(function(e){ setCloud('err','photo NOT saved');
+        alert('The photo could not be saved to the cloud:\n'+(e&&e.message||e)+'\n\nIt is only shown until you reload.'); });
   });
   inp.value=''; // allow re-uploading the same file
 }
