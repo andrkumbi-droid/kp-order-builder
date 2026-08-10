@@ -1170,14 +1170,19 @@ function piNumber(name){
   var m=s.match(/^\s*(\d{1,4})\b/); if(m) return m[1];
   m=s.match(/\((\d{1,4})\)/); return m?m[1]:'';
 }
+/* hand-typed headings are remembered PER PI (key sanitised for Firebase: . # $ [ ] → _) */
+function piMetaKey(pi){ return String(pi||'_').replace(/[.#$/\[\]]/g,'_'); }
 function psHeadEl(lines,isFirst,piKey){
+  var meta=(order.piMeta||{})[piMetaKey(piKey)]||{};
   var num=piNumber(piKey)||(isFirst?piNumber(order.name):'');
-  var typed=(isFirst&&order.printSupplier!=null&&order.printSupplier!=='')?order.printSupplier:'';
+  var typed=(meta.sup!=null&&meta.sup!=='')?meta.sup
+    :((isFirst&&order.printSupplier!=null&&order.printSupplier!=='')?order.printSupplier:'');
   var sup=typed||psSupplier(lines||[]);
   sup=String(sup||'').replace(/&#\d+;?/g,' ').replace(/[\r\n\t]+/g,' ').replace(/\s{2,}/g,' ').trim(); // drop PI cell junk
   if(!typed&&num&&sup) sup=sup+' '+num;        // "Vladimir 5" — same number as the container
+  var ctn=(meta.ctn!=null&&meta.ctn!=='')?meta.ctn:((isFirst&&order.containerNo)?order.containerNo:num);
   return { id:psNewId(), t:'head', x:0,y:0,w:0,h:0,r:0,z:1,fs:1,bold:false,
-    sup:sup, ctn:(isFirst&&order.containerNo)?order.containerNo:num };
+    sup:sup, ctn:ctn };
 }
 /* sign-off block: tick deposit / balance and write who ordered it */
 function psFootEl(){
@@ -1304,9 +1309,17 @@ function psElHtml(e){
    shows up on the sheet too (they can't be set by hand here, so refreshing is always right) */
 function psRefreshMedia(){
   if(!psSheet) return;
+  /* Product photos may be uploaded in 📋 Products AFTER the sheet was built → refresh.
+     But the colour swatch/book pictures are COLOUR-SPECIFIC PER ORDER LINE (extracted from
+     that very PI) — a code can be ordered in a different colour every time. So each card
+     re-resolves from ITS OWN line (matched by code within the same PI); the catalog only
+     fills gaps. Refreshing swatches from the catalog put the WRONG colour on cards. */
+  var pool=(order.lines||[]).filter(function(l){ return l&&!l._accOnly; }).slice();
   psAllEls().forEach(function(e){
     if(e.t!=='card'||!e.code) return;
-    var ln={code:e.code};
+    var idx=-1;
+    for(var i=0;i<pool.length;i++){ if(pool[i]&&(pool[i].code||'')===e.code&&(pool[i].pi||'')===(e.g||'')){ idx=i; break; } }
+    var ln=idx>=0?pool.splice(idx,1)[0]:{code:e.code};
     e.photo=lnImg(ln,'prodImg'); e.sw=lnImg(ln,'colorImg'); e.bk=lnImg(ln,'bookImg');
   });
 }
@@ -1694,9 +1707,14 @@ function psWire(){
     }
     else if(f==='html') e.html=t.innerHTML;
     else e[f]=t.textContent.trim();
-    if(f==='sup'||f==='ctn'){                    // only the first PI's heading mirrors into the order
-      var h1=psAllEls().filter(function(x){ return x.t==='head'; })[0];
-      if(h1&&h1.id===e.id){ if(f==='sup') order.printSupplier=e.sup; else order.containerNo=e.ctn; saveLocal(); }
+    if(f==='sup'||f==='ctn'){
+      // remember the typed heading for THIS PI — survives sheet rebuilds and re-imports
+      order.piMeta=order.piMeta||{};
+      var mk=piMetaKey(e.g), m=order.piMeta[mk]=order.piMeta[mk]||{};
+      if(f==='sup') m.sup=e.sup; else m.ctn=e.ctn;
+      var h1=psAllEls().filter(function(x){ return x.t==='head'; })[0];   // first PI also mirrors into the order
+      if(h1&&h1.id===e.id){ if(f==='sup') order.printSupplier=e.sup; else order.containerNo=e.ctn; }
+      saveLocal();
     }
     if(f==='qty') psRecalc();
     psSaveLater();
@@ -1808,7 +1826,7 @@ el('btnLoad').onclick=openOrder;
 function saveOrder(){
   if(!order.lines.length) return alert('Nothing to save.');
   order.name=el('ordName').value.trim()||('Order '+new Date().toLocaleString());
-  var payload={ name:order.name, supplierId:order.supplierId||null, lines:order.lines, savedAt:Date.now(), containerNo:order.containerNo||null, printSupplier:order.printSupplier||null, sheet:order.sheet||null };
+  var payload={ name:order.name, supplierId:order.supplierId||null, lines:order.lines, savedAt:Date.now(), containerNo:order.containerNo||null, printSupplier:order.printSupplier||null, sheet:order.sheet||null, piMeta:order.piMeta||null };
   if(order._id){ db.ref(OB+'/orders/'+order._id).set(payload).then(function(){ setCloud('ok','order saved'); }); }
   else{ var r=db.ref(OB+'/orders').push(); r.set(payload).then(function(){ order._id=r.key; saveLocal(); setCloud('ok','order saved'); }).catch(function(e){ alert('Save failed: '+e.message); }); }
 }
@@ -1825,7 +1843,7 @@ function openOrder(){
     box.querySelectorAll('[data-open]').forEach(function(row){
       row.addEventListener('click',function(ev){
         if(ev.target.getAttribute('data-delorder')){ if(confirm('Delete this order?')){ db.ref(OB+'/orders/'+ev.target.getAttribute('data-delorder')).remove(); closeModal(); } return; }
-        var k=row.getAttribute('data-open'); order={name:o[k].name||'',supplierId:o[k].supplierId||null,lines:o[k].lines||[],_id:k,containerNo:o[k].containerNo||'',printSupplier:o[k].printSupplier||'',sheet:o[k].sheet||null};
+        var k=row.getAttribute('data-open'); order={name:o[k].name||'',supplierId:o[k].supplierId||null,lines:o[k].lines||[],_id:k,containerNo:o[k].containerNo||'',printSupplier:o[k].printSupplier||'',sheet:o[k].sheet||null,piMeta:o[k].piMeta||null};
         el('ordName').value=order.name; renderCards(); saveLocal(); closeModal();
       });
     });
