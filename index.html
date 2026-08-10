@@ -1127,7 +1127,7 @@ var psSheet=null, psSelId=null, psZTop=1, psZoomF=1, psIdN=0, psDragging=null;
 
 /* sheet prefs (orientation, text size, bold, cards-per-row, grid, write-in box) — kept in localStorage.
    PS_PREF_V is bumped whenever the house default changes, so everyone gets the new look once. */
-var PS_PREF_V=3, PS_SHEET_V=8;   // sheet bump: stored layouts predate per-page scale (page.fs/page.cols)
+var PS_PREF_V=3, PS_SHEET_V=9;   // sheet bump: v8 layouts stored head/foot with h=0 (hidden heading / clipped sign-off)
 var psPrefs={orient:'portrait',fs:1.8,bold:false,cols:0,grid:false,writeBox:true,fsAdj:0};
 try{ var _pp=JSON.parse(localStorage.getItem('kp-ob-psprefs')||'{}');
   if(_pp.v===PS_PREF_V){                       // older saved settings → fall back to the new default
@@ -1387,8 +1387,12 @@ function psFitsAt(fs,cols,cellW,rows,head,foot,cards,c,gap){
   foot.forEach(function(e){ lay(e,c.w); });
   cards.forEach(function(e){ lay(e, e.t==='card'?cellW:(e.t==='img'?Math.min(cellW,220):c.w)); });
   function hOf(e){ var n=psNode(e.id); return n?Math.ceil(n.getBoundingClientRect().height):0; }
+  // store EVERY measured height — the stacker positions head/foot from e.h too
+  // (h=0 there meant: cards covered the heading and the sign-off fell off the sheet)
   cards.forEach(function(e){ e.h=(e.t==='img'?e.h:hOf(e)); });
-  var need=(head.length?hOf(head[0])+18:0)+psRowsHeight(cards,cols,cellW,gap)+(foot.length?hOf(foot[0])+14:0);
+  head.forEach(function(e){ e.h=hOf(e); });
+  foot.forEach(function(e){ e.h=hOf(e); });
+  var need=(head.length?head[0].h+18:0)+psRowsHeight(cards,cols,cellW,gap)+(foot.length?foot[0].h+14:0);
   return need<=c.h-4;   // same spacing the layout below uses
 }
 /* ----- auto-arrange: one PI per page, EACH PI as large as its own page allows -----
