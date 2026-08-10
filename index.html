@@ -1151,32 +1151,61 @@ function psGet(id){ var f=psFind(id); return f&&f.e; }
 function psNode(id){ return document.querySelector('#psDoc .pel[data-id="'+id+'"]'); }
 
 /* ----- build elements out of the current order ----- */
-function psElsFromOrder(){
-  return (order.lines||[]).filter(function(l){ return !l._accOnly; }).map(function(ln){
-    var book=lnField(ln,'book'), page=ln.page||lnField(ln,'page'), num=ln.number||lnField(ln,'number');
-    var material=ln.material||lnField(ln,'material'), size=ln.size||lnField(ln,'size');
-    return { id:psNewId(), t:'card', x:0,y:0,w:0,h:0,r:0,z:0,fs:1,bold:false,
-      code:ln.code||'', model:[material,size].filter(Boolean).join(' · '),
-      colTxt:book||'', colSub:[page&&('Page '+page),num].filter(Boolean).join(' · '),
-      qty:String(ln.qty||''),
-      accs:(ln.accs||[]).map(function(a){ return {c:a.code||'', q:String(a.qty||''), u:a.unit||'pcs'}; }),
-      photo:lnImg(ln,'prodImg'), sw:lnImg(ln,'colorImg'), bk:lnImg(ln,'bookImg') };
-  });
+function psCardEl(ln){
+  var book=lnField(ln,'book'), page=ln.page||lnField(ln,'page'), num=ln.number||lnField(ln,'number');
+  var material=ln.material||lnField(ln,'material'), size=ln.size||lnField(ln,'size');
+  return { id:psNewId(), t:'card', x:0,y:0,w:0,h:0,r:0,z:0,fs:1,bold:false,
+    code:ln.code||'', model:[material,size].filter(Boolean).join(' · '),
+    colTxt:book||'', colSub:[page&&('Page '+page),num].filter(Boolean).join(' · '),
+    qty:String(ln.qty||''),
+    accs:(ln.accs||[]).map(function(a){ return {c:a.code||'', q:String(a.qty||''), u:a.unit||'pcs'}; }),
+    photo:lnImg(ln,'prodImg'), sw:lnImg(ln,'colorImg'), bk:lnImg(ln,'bookImg') };
 }
-function psHeadEl(){
-  var panels=(order.lines||[]).filter(function(l){ return !l._accOnly; });
-  var sup=(order.printSupplier!=null&&order.printSupplier!=='')?order.printSupplier:psSupplier(panels);
+function psHeadEl(lines,isFirst){
+  var sup=(isFirst&&order.printSupplier!=null&&order.printSupplier!=='')?order.printSupplier:psSupplier(lines||[]);
   sup=String(sup||'').replace(/&#\d+;?/g,' ').replace(/[\r\n\t]+/g,' ').replace(/\s{2,}/g,' ').trim(); // drop PI cell junk
   return { id:psNewId(), t:'head', x:0,y:0,w:0,h:0,r:0,z:1,fs:1,bold:false,
-    sup:sup, ctn:order.containerNo||'' };
+    sup:sup, ctn:(isFirst?(order.containerNo||''):'') };
 }
 /* sign-off block: tick deposit / balance and write who ordered it */
 function psFootEl(){
   return { id:psNewId(), t:'foot', x:0,y:0,w:0,h:0,r:0,z:1,fs:1,bold:false,
     nlabel:'Name', name:'', c1:'Deposit paid', c2:'Balance paid' };
 }
+/* Import several PIs at once → each one keeps its own page(s), heading and sign-off.
+   Lines carry `pi` (the file they came from); hand-built lines share the empty group. */
+function psGroupsFromOrder(){
+  var by={}, keys=[];
+  (order.lines||[]).filter(function(l){ return !l._accOnly; }).forEach(function(ln){
+    var k=ln.pi||'';
+    if(!by[k]){ by[k]=[]; keys.push(k); }
+    by[k].push(ln);
+  });
+  return keys.map(function(k){ return {key:k, lines:by[k]}; });
+}
+function psBuildEls(){
+  var groups=psGroupsFromOrder(); if(!groups.length) groups=[{key:'',lines:[]}];
+  var out=[];
+  groups.forEach(function(gr,gi){
+    var h=psHeadEl(gr.lines, gi===0); h.g=gr.key; out.push(h);
+    gr.lines.forEach(function(ln){ var c=psCardEl(ln); c.g=gr.key; out.push(c); });
+    var f=psFootEl(); f.g=gr.key; out.push(f);
+  });
+  return out;
+}
+/* every element belongs to a group; anything added by hand joins the page it sits on */
+function psEnsureGroups(){
+  var keys=[];
+  (psSheet?psSheet.pages:[]).forEach(function(p){
+    var maj=null;
+    (p.els||[]).forEach(function(e){ if(maj==null&&e.g!=null) maj=e.g; });
+    (p.els||[]).forEach(function(e){ if(e.g==null) e.g=(maj!=null?maj:''); });
+  });
+  psAllEls().forEach(function(e){ if(e.g==null) e.g=''; if(keys.indexOf(e.g)<0) keys.push(e.g); });
+  return keys;
+}
 /* signature of the order — when it changes, the sheet is rebuilt instead of restored */
-function psSig(){ return (order.lines||[]).map(function(l){ return (l.code||'')+(l._accOnly?'#a':'#p'); }).join('|'); }
+function psSig(){ return (order.lines||[]).map(function(l){ return (l.code||'')+'@'+(l.pi||'')+(l._accOnly?'#a':'#p'); }).join('|'); }
 
 /* ----- element HTML ----- */
 function psHandles(){
@@ -1338,71 +1367,88 @@ function psFitsAt(fs,cols,cellW,rows,head,foot,cards,c,gap){
 }
 function psFitOnePage(){
   if(!psSheet) return null;
-  var all=psAllEls();
-  var head=all.filter(function(e){ return e.t==='head'; });
-  var foot=all.filter(function(e){ return e.t==='foot'; });
-  var cards=all.filter(function(e){ return e.t!=='head'&&e.t!=='foot'; });
-  if(!cards.length) return null;
+  var keys=psEnsureGroups(), all=psAllEls();
+  if(!all.filter(function(e){ return e.t==='card'; }).length) return null;
   var c=psCanvasPx(), gap=12, fs0=psPrefs.fs, ac0=psAutoCols;
   var cand=psPrefs.cols?[psPrefs.cols]:[1,2,3];
   var best=null;
-  psSheet.pages=[{els:head.concat(cards).concat(foot)}];   // everything rendered once, then only resized
-  psAllEls().forEach(function(e){ e.x=0; e.y=0; e.r=0; e.phw=0; if(e.t!=='img') e.h=0; });
+  psSheet.pages=[{els:all}];                     // everything rendered once, then only resized
+  all.forEach(function(e){ e.x=0; e.y=0; e.r=0; e.phw=0; if(e.t!=='img') e.h=0; });
   psRender();
+  var groups=keys.map(function(k){
+    var g=all.filter(function(e){ return e.g===k; });
+    return { head:g.filter(function(e){ return e.t==='head'; }),
+             foot:g.filter(function(e){ return e.t==='foot'; }),
+             cards:g.filter(function(e){ return e.t!=='head'&&e.t!=='foot'; }) };
+  }).filter(function(g){ return g.cards.length; });
+  if(!groups.length) return null;
   cand.forEach(function(cols){
-    var rows=Math.ceil(cards.length/cols), cellW=Math.floor((c.w-gap*(cols-1))/cols);
-    var lo=0.6, hi=3, ok=null;
-    if(!psFitsAt(lo,cols,cellW,rows,head,foot,cards,c,gap)) return;   // doesn't fit even at the smallest
-    for(var i=0;i<7;i++){
-      var mid=Math.round(((lo+hi)/2)*100)/100;
-      if(psFitsAt(mid,cols,cellW,rows,head,foot,cards,c,gap)){ ok=mid; lo=mid; } else hi=mid;
-    }
-    if(ok==null) ok=0.6;
-    var score=(PS_PHB[cols]||104)*ok;            // photo size = what we are maximising
-    if(!best||score>best.score) best={cols:cols,fs:ok,score:score};
+    var cellW=Math.floor((c.w-gap*(cols-1))/cols), worst=null, okAll=true;
+    groups.forEach(function(g){                  // EVERY PI has to fit its own page
+      if(!okAll) return;
+      var lo=0.6, hi=3, ok=null;
+      if(!psFitsAt(lo,cols,cellW,0,g.head,g.foot,g.cards,c,gap)){ okAll=false; return; }
+      for(var i=0;i<7;i++){
+        var mid=Math.round(((lo+hi)/2)*100)/100;
+        if(psFitsAt(mid,cols,cellW,0,g.head,g.foot,g.cards,c,gap)){ ok=mid; lo=mid; } else hi=mid;
+      }
+      if(ok==null) ok=0.6;
+      worst=(worst==null)?ok:Math.min(worst,ok);  // one shared scale → the pages look alike
+    });
+    if(!okAll||worst==null) return;
+    var score=(PS_PHB[cols]||104)*worst;         // photo size = what we are maximising
+    if(!best||score>best.score) best={cols:cols,fs:worst,score:score};
   });
   if(!best){ psPrefs.fs=fs0; psAutoCols=ac0; return null; }
   psPrefs.fs=best.fs; psAutoCols=best.cols;
   return best;
 }
 
-/* ----- auto-arrange: lay every element out in a clean grid, flowing onto more pages ----- */
+/* ----- auto-arrange: clean grid, one PI per page (extra pages only if a PI needs them) ----- */
 function psAutoArrange(noFit){
   if(!psSheet) return;
-  if(!noFit) psFitOnePage();      // biggest photos/code that still fit a single sheet
-  var all=psAllEls();
-  var head=all.filter(function(e){ return e.t==='head'; });
-  var foot=all.filter(function(e){ return e.t==='foot'; });
-  var rest=all.filter(function(e){ return e.t!=='head'&&e.t!=='foot'; });
+  if(!noFit) psFitOnePage();      // biggest photos/code that still fit each PI on one sheet
+  var keys=psEnsureGroups(), all=psAllEls();
   var c=psCanvasPx(), cols=psColsN(), gap=12;
   var colW=Math.floor((c.w-gap*(cols-1))/cols);
-  head.forEach(function(e){ e.x=0; e.y=0; e.w=c.w; e.h=0; e.r=0; e.z=1; });
-  foot.forEach(function(e){ e.x=0; e.w=c.w; e.h=0; e.r=0; e.z=1; });
-  rest.forEach(function(e){ e.x=0; e.r=0; e.phw=0; e.w=(e.t==='card'?colW:(e.t==='img'?Math.min(colW,220):c.w)); if(e.t!=='img') e.h=0; });
-  psSheet.pages=[{els:head.concat(rest).concat(foot)}];
+  all.forEach(function(e){
+    e.x=0; e.y=0; e.r=0; e.phw=0; e.z=1;
+    e.w=(e.t==='head'||e.t==='foot')?c.w:(e.t==='card'?colW:(e.t==='img'?Math.min(colW,220):c.w));
+    if(e.t!=='img') e.h=0;
+  });
+  psSheet.pages=[{els:all}];
   psRender(); psMeasure();                       // real heights for the current width
-  var pages=[{els:head.slice()}], pi=0;
-  var y=head.length?(head[0].h+18):0, col=0, rowH=0;
-  rest.forEach(function(e,i){
-    e.z=i+2;
-    if(e.w>colW+1){                              // full-width block → own row
-      if(col){ y+=rowH+gap; col=0; rowH=0; }
-      if(y+e.h>c.h && pages[pi].els.length){ pi++; pages[pi]={els:[]}; y=0; }
-      e.x=0; e.y=y; pages[pi].els.push(e); y+=e.h+gap; return;
-    }
-    if(col>=cols){ col=0; y+=rowH+gap; rowH=0; }
-    if(y+e.h>c.h && pages[pi].els.length){ pi++; pages[pi]={els:[]}; y=0; col=0; rowH=0; }
-    e.x=col*(colW+gap); e.y=y;
-    pages[pi].els.push(e); rowH=Math.max(rowH,e.h); col++;
+  var pages=[];
+  keys.forEach(function(k){
+    var g=all.filter(function(e){ return e.g===k; });
+    var head=g.filter(function(e){ return e.t==='head'; });
+    var foot=g.filter(function(e){ return e.t==='foot'; });
+    var rest=g.filter(function(e){ return e.t!=='head'&&e.t!=='foot'; });
+    if(!head.length&&!rest.length&&!foot.length) return;
+    pages.push({els:head.slice()});              // every PI starts on a fresh page
+    var pi=pages.length-1;
+    var y=head.length?(head[0].h+18):0, col=0, rowH=0;
+    rest.forEach(function(e,i){
+      e.z=i+2;
+      if(e.w>colW+1){                            // full-width block → own row
+        if(col){ y+=rowH+gap; col=0; rowH=0; }
+        if(y+e.h>c.h && pages[pi].els.length){ pages.push({els:[]}); pi=pages.length-1; y=0; }
+        e.x=0; e.y=y; pages[pi].els.push(e); y+=e.h+gap; return;
+      }
+      if(col>=cols){ col=0; y+=rowH+gap; rowH=0; }
+      if(y+e.h>c.h && pages[pi].els.length){ pages.push({els:[]}); pi=pages.length-1; y=0; col=0; rowH=0; }
+      e.x=col*(colW+gap); e.y=y;
+      pages[pi].els.push(e); rowH=Math.max(rowH,e.h); col++;
+    });
+    // the sign-off block sits at the very bottom of this PI's last page
+    foot.forEach(function(e){
+      var last=pages[pi], bottom=0;
+      (last.els||[]).forEach(function(o){ if(o.t!=='head') bottom=Math.max(bottom,o.y+(o.h||0)); });
+      if(bottom>c.h-e.h-14){ pages.push({els:[]}); pi=pages.length-1; last=pages[pi]; }
+      e.y=c.h-e.h; last.els.push(e);
+    });
   });
-  // the sign-off block sits at the very bottom of the last page (its own page if nothing fits)
-  foot.forEach(function(e){
-    var last=pages[pages.length-1], bottom=0;
-    (last.els||[]).forEach(function(o){ if(o.t!=='head') bottom=Math.max(bottom,o.y+(o.h||0)); });
-    if(bottom>c.h-e.h-14){ pages.push({els:[]}); last=pages[pages.length-1]; }
-    e.y=c.h-e.h; last.els.push(e);
-  });
-  psSheet.pages=pages;
+  psSheet.pages=pages.length?pages:[{els:[]}];
   psGrowPhotos();
   psRender(); psSave();
 }
@@ -1639,8 +1685,10 @@ function psWire(){
     }
     else if(f==='html') e.html=t.innerHTML;
     else e[f]=t.textContent.trim();
-    if(f==='sup'){ order.printSupplier=e.sup; saveLocal(); }
-    if(f==='ctn'){ order.containerNo=e.ctn; saveLocal(); }
+    if(f==='sup'||f==='ctn'){                    // only the first PI's heading mirrors into the order
+      var h1=psAllEls().filter(function(x){ return x.t==='head'; })[0];
+      if(h1&&h1.id===e.id){ if(f==='sup') order.printSupplier=e.sup; else order.containerNo=e.ctn; saveLocal(); }
+    }
     if(f==='qty') psRecalc();
     psSaveLater();
   });
@@ -1668,7 +1716,7 @@ function openPrintSheet(){
     psZTop=Math.max.apply(null,[1].concat(psAllEls().map(function(e){ return e.z||1; })));
     psSelId=null; psRefreshMedia(); psApplyPrefs();
   }else{
-    psSheet={ sig:psSig(), v:PS_SHEET_V, pages:[{els:[psHeadEl()].concat(psElsFromOrder()).concat([psFootEl()])}] };
+    psSheet={ sig:psSig(), v:PS_SHEET_V, pages:[{els:psBuildEls()}] };
     psSelId=null; psApplyPrefs(); psAutoArrange();
   }
   psWire();
@@ -2055,7 +2103,10 @@ function showImportPreview(lines,suppliers,errors){
       (l._colorImgRaw?'<img src="'+l._colorImgRaw+'">':(l._bookImgRaw?'':'<img>'))+
       '<div class="an"><b>'+esc(l.code)+'</b><small>'+esc(l.size)+' · qty '+esc(l.qty)+(l.number?(' · '+esc(l.number)):'')+(l.page?(' · p.'+esc(l.page)):'')+(accs?(' · '+esc(accs)):'')+'</small></div></div>';
   }).join('');
+  var files={}; lines.forEach(function(l){ if(l._file) files[l._file]=1; });
+  var nFiles=Object.keys(files).length;
   box.innerHTML='<h3>Import preview — '+lines.length+' line(s)'+(withImg?(' · '+withImg+' with photo'):'')+'</h3>'+
+    (nFiles>1?'<div style="font-size:12px;color:var(--muted);margin:-6px 0 10px">'+nFiles+' PIs — each one gets its own page on the print sheet</div>':'')+
     (suppliers.length?'<label>Supplier</label><div style="margin-bottom:8px;color:var(--muted)">'+esc(suppliers.join(' / '))+'</div>':'')+
     '<div style="max-height:40vh;overflow:auto;display:flex;flex-direction:column;gap:6px">'+rowsHtml+'</div>'+
     (errors.length?'<div style="color:var(--danger);margin-top:8px;font-size:12px">'+errors.map(esc).join('<br>')+'</div>':'')+
@@ -2095,6 +2146,7 @@ function commitImport(lines,suppliers,append,andPrint){
         book:'', bookImg:im[1]||'', page:l.page||'', number:l.number||'', colorImg:im[0]||'',
         qty:String(l.qty||''), priceUSD:(l.priceUSD===''||l.priceUSD==null)?'':l.priceUSD,
         prodImg: l.code ? (IMG_BASE+l.code.trim().toUpperCase()+'.jpg') : '',
+        pi: l._file||'',                        // which PI this line came from → its own page on the sheet
         accs:(l.accs||[]).map(function(a){ return {atype:a.atype,code:a.code,qty:String(a.qty||''),img:'',unit:a.unit||''}; })
       };
     });
@@ -2126,11 +2178,19 @@ function commitImport(lines,suppliers,append,andPrint){
       });
     });
     chain.then(function(){
-      if(lastPayload){ order={name:lastPayload.name, supplierId:lastPayload.supplierId, lines:lastPayload.lines, _id:lastKey}; el('ordName').value=order.name; }
+      // each PI is archived on its own above; the board keeps ALL of them together so you can
+      // edit everything and print one document — `pi` gives each its own page on the sheet
+      if(keys.length>1){
+        order={name:keys.length+' PIs · '+new Date().toLocaleDateString(), supplierId:null, lines:newLines, _id:null};
+      }else if(lastPayload){
+        order={name:lastPayload.name, supplierId:lastPayload.supplierId, lines:lastPayload.lines, _id:lastKey};
+      }
+      el('ordName').value=order.name;
       renderCards(); saveLocal(); closeModal();
       setCloud('ok','imported & saved '+saved+' order(s)');
       if(andPrint){ openPrintSheet(); }
-      else alert('✓ Imported and SAVED '+saved+' order'+(saved>1?'s':'')+' to the cloud.\nFind them all via the "Open" button.');
+      else alert('✓ Imported '+newLines.length+' line(s) from '+saved+' PI'+(saved>1?'s':'')+'.\n'+
+        (saved>1?'All of them are on the board together — the print sheet gives each PI its own page.\nEach PI is also archived separately under "Open".':'Also saved to the cloud — find it via "Open".'));
     }).catch(function(e){ closeModal(); alert('Import saved partially — error: '+e.message); });
   });
 }
