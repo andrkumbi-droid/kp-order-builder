@@ -1127,8 +1127,8 @@ var psSheet=null, psSelId=null, psZTop=1, psZoomF=1, psIdN=0, psDragging=null;
 
 /* sheet prefs (orientation, text size, bold, cards-per-row, grid, write-in box) — kept in localStorage.
    PS_PREF_V is bumped whenever the house default changes, so everyone gets the new look once. */
-var PS_PREF_V=3, PS_SHEET_V=7;   // bump = saved sheets rebuild (stored layouts have the old cut-off photo sizes)
-var psPrefs={orient:'portrait',fs:1.8,bold:false,cols:0,grid:false,writeBox:true};
+var PS_PREF_V=3, PS_SHEET_V=8;   // sheet bump: stored layouts predate per-page scale (page.fs/page.cols)
+var psPrefs={orient:'portrait',fs:1.8,bold:false,cols:0,grid:false,writeBox:true,fsAdj:0};
 try{ var _pp=JSON.parse(localStorage.getItem('kp-ob-psprefs')||'{}');
   if(_pp.v===PS_PREF_V){                       // older saved settings → fall back to the new default
     if(_pp.orient==='landscape') psPrefs.orient='landscape';
@@ -1136,14 +1136,15 @@ try{ var _pp=JSON.parse(localStorage.getItem('kp-ob-psprefs')||'{}');
     psPrefs.bold=!!_pp.bold; psPrefs.grid=!!_pp.grid;
     psPrefs.writeBox=_pp.writeBox!==false;
     if(_pp.cols>=1&&_pp.cols<=3) psPrefs.cols=_pp.cols|0;
+    if(_pp.fsAdj>=-1&&_pp.fsAdj<=1.2) psPrefs.fsAdj=_pp.fsAdj;   // A−/A+ = bias on top of each page's auto fit
   }
 }catch(e){}
 
 function psNewId(){ return 'e'+Date.now().toString(36)+(psIdN++); }
 function psPageMM(){ return psPrefs.orient==='landscape'?{w:297,h:210}:{w:210,h:297}; }
 function psCanvasPx(){ var m=psPageMM(); return {w:Math.round((m.w-24)*PPMM), h:Math.round((m.h-24)*PPMM)}; }
-var psAutoCols=0;   // what the one-page fitter picked while cols is on "auto"
-function psColsN(){ return psPrefs.cols||psAutoCols||(psPrefs.orient==='landscape'?3:2); }
+/* fallback only — arranged pages carry their own cols (page.cols), picked per PI */
+function psColsN(){ return psPrefs.cols||(psPrefs.orient==='landscape'?3:2); }
 function psAllEls(){ var a=[]; if(psSheet) psSheet.pages.forEach(function(p){ a=a.concat(p.els||[]); }); return a; }
 function psFind(id){ var r=null; if(!psSheet||!id) return null;
   psSheet.pages.forEach(function(p,pi){ (p.els||[]).forEach(function(e,ei){ if(e.id===id) r={e:e,pi:pi,ei:ei}; }); });
@@ -1278,18 +1279,21 @@ function psElStyle(e){
    wraps taller than the measured card, the bottom gets cut off (the bug this replaces).
    So after every step we check the real content size and back off on overflow. */
 function psGrowPhotos(){
-  psAllEls().forEach(function(e){
-    if(e.t!=='card') return;
-    if(!e.h||!e.photo){ e.phw=0; psApplyElStyle(e); return; }
-    var n=psNode(e.id), inner=n&&n.querySelector('.pelin');
-    if(!inner){ e.phw=0; return; }
-    var base=Math.round((PS_PHB[psColsN()]||104)*psPrefs.fs);   // size the card was measured with
-    var phw=Math.min(e.h-22, Math.round(e.w*0.45));
-    for(; phw>base; phw-=14){
-      e.phw=phw; psApplyElStyle(e);
-      if(inner.scrollHeight<=inner.clientHeight+1 && inner.scrollWidth<=inner.clientWidth+1) return; // fits
-    }
-    e.phw=0; psApplyElStyle(e);   // measured size always fits
+  if(!psSheet) return;
+  psSheet.pages.forEach(function(pg){
+    var base=Math.round((PS_PHB[pg.cols||psColsN()]||104)*(pg.fs||psPrefs.fs));   // size this PAGE was measured with
+    (pg.els||[]).forEach(function(e){
+      if(e.t!=='card') return;
+      if(!e.h||!e.photo){ e.phw=0; psApplyElStyle(e); return; }
+      var n=psNode(e.id), inner=n&&n.querySelector('.pelin');
+      if(!inner){ e.phw=0; return; }
+      var phw=Math.min(e.h-22, Math.round(e.w*0.45));
+      for(; phw>base; phw-=14){
+        e.phw=phw; psApplyElStyle(e);
+        if(inner.scrollHeight<=inner.clientHeight+1 && inner.scrollWidth<=inner.clientWidth+1) return; // fits
+      }
+      e.phw=0; psApplyElStyle(e);   // measured size always fits
+    });
   });
 }
 function psElHtml(e){
@@ -1314,10 +1318,11 @@ function psRender(){
   var cls=(psPrefs.orient==='landscape'?' land':'')+(psPrefs.bold?' psbold':'')+(psPrefs.grid?' showgrid':'')+(psPrefs.writeBox?'':' nowrite');
   var nCards=psAllEls().filter(function(e){ return e.t==='card'; }).length;
   doc.innerHTML=psSheet.pages.map(function(pg,i){
+    // each page carries its own scale + cards-per-row (a 2-card PI prints big, a 5-card one compact)
     return '<div class="pswrap">'+
       '<span class="pgnum">Page '+(i+1)+' / '+psSheet.pages.length+'</span>'+
       (psSheet.pages.length>1?'<button class="pgdel" data-delp="'+i+'" title="delete this page">✕ page</button>':'')+
-      '<div class="pspage'+cls+'" data-p="'+i+'" style="--fs:'+psPrefs.fs+';--phb:'+PS_PHB[psColsN()]+'px">'+
+      '<div class="pspage'+cls+'" data-p="'+i+'" style="--fs:'+(pg.fs||psPrefs.fs)+';--phb:'+PS_PHB[pg.cols||psColsN()]+'px">'+
         '<div class="pscanvas" data-p="'+i+'">'+
           '<div class="psgridbg"></div>'+
           (pg.els||[]).map(psElHtml).join('')+
@@ -1326,8 +1331,9 @@ function psRender(){
         '</div></div></div>';
   }).join('');
   psRecalc(); psFit(); psSelUI();
-  el('psCols').textContent=psPrefs.cols?('▦ '+psPrefs.cols+' per row'):('▦ auto ('+psColsN()+')');
-  el('psFsVal').textContent=Math.round(psPrefs.fs*100)+'%';
+  el('psCols').textContent=psPrefs.cols?('▦ '+psPrefs.cols+' per row'):'▦ auto';
+  var adj=psPrefs.fsAdj||0;
+  el('psFsVal').textContent=adj?((adj>0?'+':'')+Math.round(adj*100)+'%'):'auto';
 }
 /* elements created with h=0 are measured once, then keep an explicit height */
 function psMeasure(){
@@ -1385,78 +1391,56 @@ function psFitsAt(fs,cols,cellW,rows,head,foot,cards,c,gap){
   var need=(head.length?hOf(head[0])+18:0)+psRowsHeight(cards,cols,cellW,gap)+(foot.length?hOf(foot[0])+14:0);
   return need<=c.h-4;   // same spacing the layout below uses
 }
-function psFitOnePage(){
-  if(!psSheet) return null;
-  var keys=psEnsureGroups(), all=psAllEls();
-  if(!all.filter(function(e){ return e.t==='card'; }).length) return null;
-  var c=psCanvasPx(), gap=12, fs0=psPrefs.fs, ac0=psAutoCols;
-  var cand=psPrefs.cols?[psPrefs.cols]:[1,2,3];
-  var best=null;
-  psSheet.pages=[{els:all}];                     // everything rendered once, then only resized
-  all.forEach(function(e){ e.x=0; e.y=0; e.r=0; e.phw=0; if(e.t!=='img') e.h=0; });
-  psRender();
-  var groups=keys.map(function(k){
-    var g=all.filter(function(e){ return e.g===k; });
-    return { head:g.filter(function(e){ return e.t==='head'; }),
-             foot:g.filter(function(e){ return e.t==='foot'; }),
-             cards:g.filter(function(e){ return e.t!=='head'&&e.t!=='foot'; }) };
-  }).filter(function(g){ return g.cards.length; });
-  if(!groups.length) return null;
-  cand.forEach(function(cols){
-    var cellW=Math.floor((c.w-gap*(cols-1))/cols), worst=null, okAll=true;
-    groups.forEach(function(g){                  // EVERY PI has to fit its own page
-      if(!okAll) return;
-      var lo=0.6, hi=3, ok=null;
-      if(!psFitsAt(lo,cols,cellW,0,g.head,g.foot,g.cards,c,gap)){ okAll=false; return; }
-      for(var i=0;i<7;i++){
-        var mid=Math.round(((lo+hi)/2)*100)/100;
-        if(psFitsAt(mid,cols,cellW,0,g.head,g.foot,g.cards,c,gap)){ ok=mid; lo=mid; } else hi=mid;
-      }
-      if(ok==null) ok=0.6;
-      worst=(worst==null)?ok:Math.min(worst,ok);  // one shared scale → the pages look alike
-    });
-    if(!okAll||worst==null) return;
-    var score=(PS_PHB[cols]||104)*worst;         // photo size = what we are maximising
-    if(!best||score>best.score) best={cols:cols,fs:worst,score:score};
-  });
-  if(!best){ psPrefs.fs=fs0; psAutoCols=ac0; return null; }
-  psPrefs.fs=best.fs; psAutoCols=best.cols;
-  return best;
-}
-
-/* ----- auto-arrange: clean grid, one PI per page (extra pages only if a PI needs them) ----- */
+/* ----- auto-arrange: one PI per page, EACH PI as large as its own page allows -----
+   Every PI gets its own scale + cards-per-row, so a page with 2 cards fills the sheet with
+   big cards while a page with 5 stays compact — pages need not look alike (Andre's call). */
 function psAutoArrange(noFit){
   if(!psSheet) return;
-  if(!noFit) psFitOnePage();      // biggest photos/code that still fit each PI on one sheet
   var keys=psEnsureGroups(), all=psAllEls();
-  var c=psCanvasPx(), cols=psColsN(), gap=12;
-  var colW=Math.floor((c.w-gap*(cols-1))/cols);
-  all.forEach(function(e){
-    e.x=0; e.y=0; e.r=0; e.phw=0; e.z=1;
-    e.w=(e.t==='head'||e.t==='foot')?c.w:(e.t==='card'?colW:(e.t==='img'?Math.min(colW,220):c.w));
-    if(e.t!=='img') e.h=0;
-  });
-  psSheet.pages=[{els:all}];
-  psRender(); psMeasure();                       // real heights for the current width
+  var c=psCanvasPx(), gap=12;
+  all.forEach(function(e){ e.x=0; e.y=0; e.r=0; e.phw=0; e.z=1; if(e.t!=='img') e.h=0; });
+  psSheet.pages=[{els:all}];                     // temp page: nodes exist once, trials only resize
+  psRender();
   var pages=[];
   keys.forEach(function(k){
     var g=all.filter(function(e){ return e.g===k; });
+    if(!g.length) return;
     var head=g.filter(function(e){ return e.t==='head'; });
     var foot=g.filter(function(e){ return e.t==='foot'; });
     var rest=g.filter(function(e){ return e.t!=='head'&&e.t!=='foot'; });
-    if(!head.length&&!rest.length&&!foot.length) return;
-    pages.push({els:head.slice()});              // every PI starts on a fresh page
-    var pi=pages.length-1;
+    // biggest scale at which THIS PI still fits one page, per cards-per-row candidate
+    var cand=psPrefs.cols?[psPrefs.cols]:[1,2,3], best=null;
+    if(!noFit&&rest.length){
+      cand.forEach(function(cols){
+        var cellW=Math.floor((c.w-gap*(cols-1))/cols);
+        var lo=0.6, hi=3, ok=null;
+        if(!psFitsAt(lo,cols,cellW,0,head,foot,rest,c,gap)) return;
+        for(var i=0;i<7;i++){
+          var mid=Math.round(((lo+hi)/2)*100)/100;
+          if(psFitsAt(mid,cols,cellW,0,head,foot,rest,c,gap)){ ok=mid; lo=mid; } else hi=mid;
+        }
+        if(ok==null) ok=0.6;
+        var score=(PS_PHB[cols]||104)*ok;        // photo size = what we are maximising
+        if(!best||score>best.score) best={cols:cols,fs:ok,score:score};
+      });
+    }
+    var cols=best?best.cols:psColsN();
+    var gfs=Math.min(3,Math.max(0.6,Math.round(((best?best.fs:(psPrefs.fs||1)))*100)/100+(psPrefs.fsAdj||0)));
+    var colW=Math.floor((c.w-gap*(cols-1))/cols);
+    psFitsAt(gfs,cols,colW,0,head,foot,rest,c,gap);   // final measure at the size that prints
+    function newPage(){ pages.push({els:[],fs:gfs,cols:cols}); return pages.length-1; }
+    var pi=newPage();                            // every PI starts on a fresh page
+    pages[pi].els=head.slice();
     var y=head.length?(head[0].h+18):0, col=0, rowH=0;
     rest.forEach(function(e,i){
       e.z=i+2;
       if(e.w>colW+1){                            // full-width block → own row
         if(col){ y+=rowH+gap; col=0; rowH=0; }
-        if(y+e.h>c.h && pages[pi].els.length){ pages.push({els:[]}); pi=pages.length-1; y=0; }
+        if(y+e.h>c.h && pages[pi].els.length){ pi=newPage(); y=0; }
         e.x=0; e.y=y; pages[pi].els.push(e); y+=e.h+gap; return;
       }
       if(col>=cols){ col=0; y+=rowH+gap; rowH=0; }
-      if(y+e.h>c.h && pages[pi].els.length){ pages.push({els:[]}); pi=pages.length-1; y=0; col=0; rowH=0; }
+      if(y+e.h>c.h && pages[pi].els.length){ pi=newPage(); y=0; col=0; rowH=0; }
       e.x=col*(colW+gap); e.y=y;
       pages[pi].els.push(e); rowH=Math.max(rowH,e.h); col++;
     });
@@ -1464,11 +1448,11 @@ function psAutoArrange(noFit){
     foot.forEach(function(e){
       var last=pages[pi], bottom=0;
       (last.els||[]).forEach(function(o){ if(o.t!=='head') bottom=Math.max(bottom,o.y+(o.h||0)); });
-      if(bottom>c.h-e.h-14){ pages.push({els:[]}); pi=pages.length-1; last=pages[pi]; }
+      if(bottom>c.h-e.h-14){ pi=newPage(); last=pages[pi]; }
       e.y=c.h-e.h; last.els.push(e);
     });
   });
-  psSheet.pages=pages.length?pages:[{els:[]}];
+  psSheet.pages=pages.length?pages:[{els:[],fs:psPrefs.fs,cols:psColsN()}];
   psRender();          // nodes must exist first — the photo growth measures them
   psGrowPhotos();
   psSave();
@@ -1748,8 +1732,9 @@ function psApplyPrefs(){
   if(!st){ st=document.createElement('style'); st.id='psPageStyle'; document.head.appendChild(st); }
   st.textContent='@media print{@page{size:A4 '+psPrefs.orient+';margin:0}}';   // page padding = the print margin
   el('psOrient').textContent=psPrefs.orient==='landscape'?'⬓ Portrait':'⬒ Landscape';
-  el('psCols').textContent=psPrefs.cols?('▦ '+psPrefs.cols+' per row'):('▦ auto ('+psColsN()+')');
-  el('psFsVal').textContent=Math.round(psPrefs.fs*100)+'%';
+  el('psCols').textContent=psPrefs.cols?('▦ '+psPrefs.cols+' per row'):'▦ auto';
+  var adj=psPrefs.fsAdj||0;
+  el('psFsVal').textContent=adj?((adj>0?'+':'')+Math.round(adj*100)+'%'):'auto';
   el('psBold').classList.toggle('on',!!psPrefs.bold);
   el('psGridT').classList.toggle('on',!!psPrefs.grid);
   el('psWriteT').classList.toggle('on',!!psPrefs.writeBox);
@@ -1787,15 +1772,17 @@ el('psSign').onclick=function(){
   e.w=c.w; e.h=0; psAddEl(e);
   var f=psGet(e.id); if(f){ f.x=0; f.y=Math.max(0,c.h-(f.h||60)); psApplyElStyle(f); psSave(); }  // park it at the bottom
 };
-el('psWriteT').onclick=function(){ psPrefs.writeBox=!psPrefs.writeBox; psApplyPrefs(); };
+el('psWriteT').onclick=function(){ psPrefs.writeBox=!psPrefs.writeBox; psApplyPrefs(); psAutoArrange(); }; // box height changes → re-measure
 el('psAddPage').onclick=psAddPage;
-el('psOrient').onclick=function(){ psPrefs.orient=(psPrefs.orient==='landscape'?'portrait':'landscape'); psApplyPrefs(); };
-el('psCols').onclick=function(){ psPrefs.cols=(psPrefs.cols+1)%4; psApplyPrefs(); };   // auto → 1 → 2 → 3 → auto
+/* layout-changing prefs re-run the arranger — text/photo sizes must be re-measured,
+   otherwise the cards clip again (the grid toggle is visual-only and just re-renders) */
+el('psOrient').onclick=function(){ psPrefs.orient=(psPrefs.orient==='landscape'?'portrait':'landscape'); psApplyPrefs(); psAutoArrange(); };
+el('psCols').onclick=function(){ psPrefs.cols=(psPrefs.cols+1)%4; psApplyPrefs(); psAutoArrange(); };   // auto → 1 → 2 → 3 → auto
 el('psArrange').onclick=function(){ psAutoArrange(); };   // not the handler itself — the click event would land in `noFit`
 el('psGridT').onclick=function(){ psPrefs.grid=!psPrefs.grid; psApplyPrefs(); };
-el('psFsMinus').onclick=function(){ psPrefs.fs=Math.max(0.6,Math.round((psPrefs.fs-0.1)*10)/10); psApplyPrefs(); };
-el('psFsPlus').onclick=function(){ psPrefs.fs=Math.min(3,Math.round((psPrefs.fs+0.1)*10)/10); psApplyPrefs(); };
-el('psBold').onclick=function(){ psPrefs.bold=!psPrefs.bold; psApplyPrefs(); };
+el('psFsMinus').onclick=function(){ psPrefs.fsAdj=Math.max(-1,Math.round(((psPrefs.fsAdj||0)-0.1)*10)/10); psApplyPrefs(); psAutoArrange(); };
+el('psFsPlus').onclick=function(){ psPrefs.fsAdj=Math.min(1.2,Math.round(((psPrefs.fsAdj||0)+0.1)*10)/10); psApplyPrefs(); psAutoArrange(); };
+el('psBold').onclick=function(){ psPrefs.bold=!psPrefs.bold; psApplyPrefs(); psAutoArrange(); };
 el('psElFsM').onclick=function(){ psElScale(-0.1); };
 el('psElFsP').onclick=function(){ psElScale(0.1); };
 el('psElBold').onclick=function(){ var e=psGet(psSelId); if(!e) return; e.bold=!e.bold;
