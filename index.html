@@ -976,11 +976,23 @@ function upsertProduct(line, fromPI){
   var k=pkey(line.code); if(!k) return;
   var pq=parseFloat(line.qty)||0;
   var o={ code:line.code, updatedAt:Date.now() };
+  var ex=cat.products[k]||{};
   function setIf(f,v){ if(v!=='' && v!=null) o[f]=v; }
+  /* Photos are precious: a PI import (and "add to order") hands us `IMG_BASE/<CODE>.jpg`
+     for EVERY code — a guess, not a picture. Storing that used to wipe photos uploaded in
+     📋 Products. So: never store the by-code guess, and never let an import or a plain link
+     replace a photo that is already there. */
+  function setImg(f,v){
+    if(!v) return;
+    if(v.indexOf(IMG_BASE)===0) return;                                       // website guess by code
+    if(fromPI && ex[f]) return;                                               // imports only fill gaps
+    if(ex[f] && ex[f].indexOf('data:')===0 && v.indexOf('data:')!==0) return; // keep the uploaded one
+    o[f]=v;
+  }
   if(!fromPI) setIf('supplier', line.supplier); // PI invoice company isn't the "supplier" we track (Jacky/Belinda/…)
   setIf('material',line.material); setIf('size',line.size); setIf('panelName',line.panelName);
   setIf('book',line.book); setIf('page',line.page); setIf('number',line.number);
-  setIf('colorImg',line.colorImg); setIf('bookImg',line.bookImg); setIf('prodImg',line.prodImg);
+  setImg('colorImg',line.colorImg); setImg('bookImg',line.bookImg); setImg('prodImg',line.prodImg);
   setIf('priceUSD',line.priceUSD);
   if(line.accs && line.accs.length) o.accs=line.accs.map(function(a){ var aq=parseFloat(a.qty)||0; return { atype:a.atype||'', code:a.code||'', pct: pq?Math.round(aq/pq*100):0, unit:a.unit||'', img:a.img||'' }; });
   db.ref(OB+'/products/'+k).update(o).catch(function(){}); // merge, never wipe existing fields
