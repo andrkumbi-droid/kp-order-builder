@@ -1993,6 +1993,48 @@ function u8ToB64(u8){ var s='',CH=0x8000; for(var i=0;i<u8.length;i+=CH){ s+=Str
 function resolveRel(fromDir,target){ var parts=(fromDir+target).split('/'),out=[]; parts.forEach(function(p){ if(p==='..')out.pop(); else if(p!=='.'&&p!=='')out.push(p); }); return out.join('/'); }
 function downscale(dataUrl,max){ return new Promise(function(res){ var img=new Image(); img.onload=function(){ var w=img.width,h=img.height; if(w>h&&w>max){h=Math.round(h*max/w);w=max;}else if(h>max){w=Math.round(w*max/h);h=max;} var cv=document.createElement('canvas'); cv.width=w||1; cv.height=h||1; cv.getContext('2d').drawImage(img,0,0,w,h); try{res(cv.toDataURL('image/jpeg',0.72));}catch(e){res('');} }; img.onerror=function(){res('');}; img.src=dataUrl; }); }
 /* extract embedded images anchored per (row,col) from the sheet's drawing */
+/* Which picture column is the colour book, which is the item/colour photo? The PI header row
+   says so ("Number | Color Book | ITEM | COLOR | SIZE …") — far safer than guessing by position,
+   since every supplier orders the columns differently. Only columns that really carry images count. */
+function piImageCols(rows,cols){
+  var out={book:null,item:null};
+  if(!rows) return out;
+  var has=function(c){ return cols[c]&&cols[c].length; };
+  for(var r=0;r<rows.length&&r<60;r++){
+    var cells=rows[r]; if(!cells) continue;
+    var book=null,item=null;
+    Object.keys(cells).forEach(function(k){
+      var c=+k, t=String(cells[k]||'').toLowerCase().replace(/\s+/g,' ').trim();
+      if(!t||t.length>18) return;
+      if(book==null && /colou?r\s*book/.test(t) && has(c)) book=c;
+      else if(item==null && /^(item|photo|picture|image|colou?r)$/.test(t) && has(c)) item=c;
+    });
+    if(book!=null||item!=null){ out.book=book; out.item=item; break; }   // header row found
+  }
+  return out;
+}
+/* Give each panel its OWN picture: walk panels and images in row order, never reuse one and
+   never go backwards, but within that pick the closest anchor row. */
+function assignOneToOne(anchors,rows){
+  var out=[];
+  if(!anchors||!anchors.length||!rows.length) return out;
+  var seen={}, imgs=[];
+  anchors.slice().sort(function(a,b){ return a.row-b.row; }).forEach(function(a){
+    if(seen[a.dataUrl]) return;                 // the same photo is often anchored several times
+    seen[a.dataUrl]=1; imgs.push(a);
+  });
+  var i=0;
+  for(var p=0;p<rows.length;p++){
+    if(i>=imgs.length){ out[p]=null; continue; }
+    var limit=Math.max(i, imgs.length-(rows.length-p));   // keep one image left for each later panel
+    var best=i;
+    for(var k=i;k<=limit&&k<imgs.length;k++){
+      if(Math.abs(imgs[k].row-rows[p])<Math.abs(imgs[best].row-rows[p])) best=k;
+    }
+    out[p]=imgs[best]; i=best+1;
+  }
+  return out;
+}
 function extractDrawingImages(files,sheetName){
   var base=sheetName.split('/').pop();
   return partText(files,'xl/worksheets/_rels/'+base+'.rels').then(function(relsXml){
@@ -2091,8 +2133,8 @@ function importFiles(fileList){
       return partText(parts,'xl/sharedStrings.xml').then(function(sx){
         var shared=parseShared(sx);
         var sheetNames=Object.keys(parts).filter(function(n){return /^xl\/worksheets\/sheet\d+\.xml$/i.test(n);}).sort();
-        var chain=Promise.resolve(null), picked=null, sup='', pickedSheet=null;
-        sheetNames.forEach(function(sn){ chain=chain.then(function(){ if(picked) return; return partText(parts,sn).then(function(sx2){ var rows=sheetGrid(sx2,shared); var res=parsePI(rows); if(res&&res.lines.length){ picked=res.lines; sup=detectSupplier(rows); pickedSheet=sn; } }); }); });
+        var chain=Promise.resolve(null), picked=null, sup='', pickedSheet=null, pickedRows=null;
+        sheetNames.forEach(function(sn){ chain=chain.then(function(){ if(picked) return; return partText(parts,sn).then(function(sx2){ var rows=sheetGrid(sx2,shared); var res=parsePI(rows); if(res&&res.lines.length){ picked=res.lines; sup=detectSupplier(rows); pickedSheet=sn; pickedRows=rows; } }); }); });
         return chain.then(function(){
           if(!picked){ errors.push(file.name+': no line items found'); return; }
           return extractDrawingImages(parts,pickedSheet).then(function(list){
@@ -2100,16 +2142,24 @@ function importFiles(fileList){
             var colIds=Object.keys(cols).map(Number);
             function nearest(arr,pr){ return arr.slice().sort(function(a,b){return Math.abs(a.row-pr)-Math.abs(b.row-pr);})[0]; }
             // "main" picture columns = an image on most panel rows (ignore stray singletons).
-            // Column semantics vary per supplier (cover / swatch / product photo), so we keep BOTH
-            // main columns and show both — the real colour swatch is always among them.
             var thr=Math.max(2,Math.floor(picked.length*0.5));
             var mainCols=colIds.filter(function(c){return cols[c].length>=thr;}); if(!mainCols.length) mainCols=colIds;
             mainCols=mainCols.sort(function(a,b){return a-b;});
-            var colorCol=mainCols.length?mainCols[mainCols.length-1]:null; // rightmost ≈ swatch
-            var bookCol=mainCols.length>1?mainCols[0]:null;                // leftmost ≈ cover
-            picked.forEach(function(l){
-              var pr=(l._srcRow||0)-1;
-              if(colorCol!=null){ var s=nearest(cols[colorCol],pr); if(s) l._colorImgRaw=s.dataUrl; }
+            var colorCol=mainCols.length?mainCols[mainCols.length-1]:null; // fallback: rightmost ≈ swatch
+            var bookCol=mainCols.length>1?mainCols[0]:null;                // fallback: leftmost ≈ cover
+            // …but the header row says it outright ("Color Book" | "ITEM"), which beats guessing by position
+            var hdr=piImageCols(pickedRows,cols);
+            if(hdr.book!=null) bookCol=hdr.book;
+            if(hdr.item!=null) colorCol=hdr.item;
+            if(colorCol!=null&&colorCol===bookCol) bookCol=null;
+            var rowsOf=picked.map(function(l){ return (l._srcRow||0)-1; });
+            // The swatch is unique per panel → hand them out 1:1 in row order. Nearest-row alone
+            // gave two panels the SAME photo and shifted the rest by one (K-PVC-09/10/11 bug).
+            var swatches=colorCol!=null?assignOneToOne(cols[colorCol],rowsOf):[];
+            picked.forEach(function(l,i){
+              var pr=rowsOf[i];
+              if(swatches[i]) l._colorImgRaw=swatches[i].dataUrl;
+              // the book cover legitimately repeats across panels → nearest match, reuse allowed
               if(bookCol!=null){ var b=nearest(cols[bookCol],pr); if(b) l._bookImgRaw=b.dataUrl; }
               l._file=file.name; l._supplier=sup;
             });
