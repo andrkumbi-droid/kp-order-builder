@@ -631,7 +631,9 @@ function obStart(){
   watch('colorBooks','colorBooks');
   watch('colors','colors');
   watch('accessories','accessories');
+  var prodFirst=true;
   db.ref(OB+'/products').on('value',function(s){ cat.products=s.val()||{};
+    if(prodFirst){ prodFirst=false; try{ renderCards(); }catch(e){} } // board drew before the catalog arrived
     var ov=el('prodOverlay'); // if Products is open but still empty (initial load), populate it once
     if(ov && !ov.classList.contains('hide') && !ov.querySelector('.ptable tbody tr[data-pkey]')) openProducts();
   },function(){});
@@ -1076,7 +1078,7 @@ function renderCards(){
     html+='<div class="card" data-idx="'+i+'">'+
       '<div class="qtytop">'+esc(ln.qty)+' pcs</div>'+
       '<button class="rm" data-idx="'+i+'">🗑</button>'+
-      (ln.prodImg?'<img class="pimg" src="'+esc(ln.prodImg)+'" onerror="this.style.opacity=.15">':'<div class="pimg"></div>')+
+      (function(){ var im=lnImg(ln,'prodImg'); return im?'<img class="pimg" src="'+esc(im)+'" onerror="this.style.opacity=.15">':'<div class="pimg"></div>'; })()+
       '<div class="mid">'+
         '<div class="code">'+esc(ln.code)+'</div>'+
         '<div class="meta">'+esc(ln.material)+' · '+esc(ln.size)+(ln.supplier?(' · '+esc(ln.supplier)):'')+'</div>'+
@@ -1096,8 +1098,11 @@ function renderCards(){
 /* ---------- print sheet = a free canvas you arrange before printing ---------- */
 /* best image for a line: line's own → product catalog → website by code */
 function lnImg(ln,field){
-  if(ln[field]) return ln[field];
-  var p=cat.products[pkey(ln.code||'')]; if(p&&p[field]) return p[field];
+  var v=ln[field];
+  if(v && v.indexOf(IMG_BASE)!==0) return v;        // a real picture on the line wins
+  var p=cat.products[pkey(ln.code||'')];
+  if(p&&p[field]) return p[field];                  // …else the catalog — photos you upload live here,
+  if(v) return v;                                   //    and they must beat the line's by-code website link
   if(field==='prodImg'&&ln.code) return IMG_BASE+ln.code.trim().toUpperCase()+'.jpg';
   return '';
 }
@@ -2548,7 +2553,7 @@ function renderOrdPanel(){
   if(cnt) cnt.textContent=order.lines.length;
   if(!order.lines.length){ list.innerHTML='<div class="oempty">No items yet.<br>Tick a product on the left to drop it here, or <b>Build new order</b> for a custom line.</div>'; return; }
   list.innerHTML=order.lines.map(function(ln,i){
-    var img=ln.prodImg||ln.colorImg||ln.bookImg||'';
+    var img=lnImg(ln,'prodImg')||ln.colorImg||ln.bookImg||'';
     var accsHtml=(ln.accs||[]).map(function(a,ai){
       return '<div class="oacc"><input class="oacode" value="'+esc(a.code||'')+'" data-i="'+i+'" data-a="'+ai+'" title="accessory code">'+
         '<input class="oaq" type="number" min="0" step="1" placeholder="qty" value="'+esc(a.qty||'')+'" data-i="'+i+'" data-a="'+ai+'">'+
