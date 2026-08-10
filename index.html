@@ -1126,7 +1126,7 @@ var psSheet=null, psSelId=null, psZTop=1, psZoomF=1, psIdN=0, psDragging=null;
 
 /* sheet prefs (orientation, text size, bold, cards-per-row, grid, write-in box) — kept in localStorage.
    PS_PREF_V is bumped whenever the house default changes, so everyone gets the new look once. */
-var PS_PREF_V=3, PS_SHEET_V=5;   // bump = saved sheets re-measure/re-derive (heading size, supplier name)
+var PS_PREF_V=3, PS_SHEET_V=6;   // bump = saved sheets re-measure/re-derive (heading size, supplier name + PI no.)
 var psPrefs={orient:'portrait',fs:1.8,bold:false,cols:0,grid:false,writeBox:true};
 try{ var _pp=JSON.parse(localStorage.getItem('kp-ob-psprefs')||'{}');
   if(_pp.v===PS_PREF_V){                       // older saved settings → fall back to the new default
@@ -1161,11 +1161,21 @@ function psCardEl(ln){
     accs:(ln.accs||[]).map(function(a){ return {c:a.code||'', q:String(a.qty||''), u:a.unit||'pcs'}; }),
     photo:lnImg(ln,'prodImg'), sw:lnImg(ln,'colorImg'), bk:lnImg(ln,'bookImg') };
 }
-function psHeadEl(lines,isFirst){
-  var sup=(isFirst&&order.printSupplier!=null&&order.printSupplier!=='')?order.printSupplier:psSupplier(lines||[]);
+/* the PI is named after its container: "14.Proforma Invoice …" → 14 (a trailing "(1)" from a
+   re-download must not win, so the leading number counts first) */
+function piNumber(name){
+  var s=String(name||'');
+  var m=s.match(/^\s*(\d{1,4})\b/); if(m) return m[1];
+  m=s.match(/\((\d{1,4})\)/); return m?m[1]:'';
+}
+function psHeadEl(lines,isFirst,piKey){
+  var num=piNumber(piKey)||(isFirst?piNumber(order.name):'');
+  var typed=(isFirst&&order.printSupplier!=null&&order.printSupplier!=='')?order.printSupplier:'';
+  var sup=typed||psSupplier(lines||[]);
   sup=String(sup||'').replace(/&#\d+;?/g,' ').replace(/[\r\n\t]+/g,' ').replace(/\s{2,}/g,' ').trim(); // drop PI cell junk
+  if(!typed&&num&&sup) sup=sup+' '+num;        // "Vladimir 5" — same number as the container
   return { id:psNewId(), t:'head', x:0,y:0,w:0,h:0,r:0,z:1,fs:1,bold:false,
-    sup:sup, ctn:(isFirst?(order.containerNo||''):'') };
+    sup:sup, ctn:(isFirst&&order.containerNo)?order.containerNo:num };
 }
 /* sign-off block: tick deposit / balance and write who ordered it */
 function psFootEl(){
@@ -1187,7 +1197,7 @@ function psBuildEls(){
   var groups=psGroupsFromOrder(); if(!groups.length) groups=[{key:'',lines:[]}];
   var out=[];
   groups.forEach(function(gr,gi){
-    var h=psHeadEl(gr.lines, gi===0); h.g=gr.key; out.push(h);
+    var h=psHeadEl(gr.lines, gi===0, gr.key); h.g=gr.key; out.push(h);
     gr.lines.forEach(function(ln){ var c=psCardEl(ln); c.g=gr.key; out.push(c); });
     var f=psFootEl(); f.g=gr.key; out.push(f);
   });
