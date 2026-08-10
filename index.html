@@ -386,8 +386,8 @@
   /* heading element */
   .pshead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;border-bottom:2px solid #111;padding-bottom:8px}
   .pshead .pshl{flex:1}
-  .pshead .pst{font-size:calc(22px*var(--fs,1));font-weight:800;letter-spacing:.3px;text-align:center}
-  .pshead .pssub{font-size:calc(12px*var(--fs,1));color:#555;margin-top:3px}
+  .pshead .pst{font-size:calc(32px*var(--fs,1));font-weight:800;letter-spacing:.3px;text-align:center;line-height:1.15}
+  .pshead .pssub{font-size:calc(16px*var(--fs,1));color:#555;margin-top:5px}
   .pshead .psstat{text-align:right;font-size:calc(12px*var(--fs,1));color:#333;white-space:nowrap;line-height:1.5}
   .pshead .psstat b{font-size:calc(16px*var(--fs,1));color:#111}
   .pshead .pshl{min-width:0}
@@ -1103,7 +1103,7 @@ var psSheet=null, psSelId=null, psZTop=1, psZoomF=1, psIdN=0, psDragging=null;
 
 /* sheet prefs (orientation, text size, bold, cards-per-row, grid, write-in box) — kept in localStorage.
    PS_PREF_V is bumped whenever the house default changes, so everyone gets the new look once. */
-var PS_PREF_V=3, PS_SHEET_V=3;
+var PS_PREF_V=3, PS_SHEET_V=4;   // sheet bump: the bigger heading needs a fresh measure, else it clips
 var psPrefs={orient:'portrait',fs:1.8,bold:false,cols:0,grid:false,writeBox:true};
 try{ var _pp=JSON.parse(localStorage.getItem('kp-ob-psprefs')||'{}');
   if(_pp.v===PS_PREF_V){                       // older saved settings → fall back to the new default
