@@ -1107,10 +1107,16 @@ function lnImg(ln,field){
   return '';
 }
 function lnField(ln,field){ if(ln[field]) return ln[field]; var p=cat.products[pkey(ln.code||'')]; return (p&&p[field])||''; }
-/* most common supplier across the lines → used as the sheet heading */
+/* Who we buy from (Vladimir, Jacky, …) — the catalog wins over the line, because an imported
+   line carries the PI's invoice company (LINYI XIECHENG…), which is not what we call supplier. */
+function lnSupplier(ln){
+  var p=cat.products[pkey(ln.code||'')];
+  return (p&&p.supplier)||ln.supplier||'';
+}
+/* most common supplier across the lines → the sheet heading (container no. is typed by hand) */
 function psSupplier(panels){
   var counts={}, best='', bestN=0;
-  panels.forEach(function(ln){ var s=lnField(ln,'supplier'); if(!s) return; counts[s]=(counts[s]||0)+1; if(counts[s]>bestN){ bestN=counts[s]; best=s; } });
+  panels.forEach(function(ln){ var s=lnSupplier(ln); if(!s) return; counts[s]=(counts[s]||0)+1; if(counts[s]>bestN){ bestN=counts[s]; best=s; } });
   return best;
 }
 
@@ -1120,7 +1126,7 @@ var psSheet=null, psSelId=null, psZTop=1, psZoomF=1, psIdN=0, psDragging=null;
 
 /* sheet prefs (orientation, text size, bold, cards-per-row, grid, write-in box) — kept in localStorage.
    PS_PREF_V is bumped whenever the house default changes, so everyone gets the new look once. */
-var PS_PREF_V=3, PS_SHEET_V=4;   // sheet bump: the bigger heading needs a fresh measure, else it clips
+var PS_PREF_V=3, PS_SHEET_V=5;   // bump = saved sheets re-measure/re-derive (heading size, supplier name)
 var psPrefs={orient:'portrait',fs:1.8,bold:false,cols:0,grid:false,writeBox:true};
 try{ var _pp=JSON.parse(localStorage.getItem('kp-ob-psprefs')||'{}');
   if(_pp.v===PS_PREF_V){                       // older saved settings → fall back to the new default
