@@ -365,8 +365,9 @@
   .pscard .pscname{font-size:calc(12px*var(--fs,1));font-weight:700;line-height:1.25;min-width:0}
   .pscard .pscname small{display:block;font-weight:400;color:#666}
   .pscard .psqty{display:inline-block;background:#111;color:#fff;font-weight:800;font-size:calc(14px*var(--fs,1));padding:3px 12px;border-radius:20px;white-space:nowrap}
-  /* qty pill + an empty box to write the real colour in by hand */
-  .pscard .psqrow{display:flex;align-items:stretch;gap:10px;margin-top:8px}
+  /* qty pill + an empty box to write the real colour in by hand
+     (wraps under the pill in narrow cards instead of poking out of the box) */
+  .pscard .psqrow{display:flex;align-items:stretch;gap:8px;margin-top:8px;flex-wrap:wrap}
   .pscard .psqrow .psqty{align-self:center}
   .pscard .pswrite{flex:1;min-width:70px;min-height:calc(26px*var(--fs,1));border:1.5px solid #111;border-radius:4px;padding:2px 7px;font-size:calc(13px*var(--fs,1));line-height:1.35}
   .pspage.nowrite .pswrite{display:none}
@@ -1126,7 +1127,7 @@ var psSheet=null, psSelId=null, psZTop=1, psZoomF=1, psIdN=0, psDragging=null;
 
 /* sheet prefs (orientation, text size, bold, cards-per-row, grid, write-in box) — kept in localStorage.
    PS_PREF_V is bumped whenever the house default changes, so everyone gets the new look once. */
-var PS_PREF_V=3, PS_SHEET_V=6;   // bump = saved sheets re-measure/re-derive (heading size, supplier name + PI no.)
+var PS_PREF_V=3, PS_SHEET_V=7;   // bump = saved sheets rebuild (stored layouts have the old cut-off photo sizes)
 var psPrefs={orient:'portrait',fs:1.8,bold:false,cols:0,grid:false,writeBox:true};
 try{ var _pp=JSON.parse(localStorage.getItem('kp-ob-psprefs')||'{}');
   if(_pp.v===PS_PREF_V){                       // older saved settings → fall back to the new default
@@ -1272,14 +1273,23 @@ function psElStyle(e){
     (e.r?('transform:rotate('+e.r+'deg);'):'')+((e.fs&&e.fs!==1)?('--fs:'+e.fs+';'):'')+
     (e.phw?('--phw:'+Math.round(e.phw)+'px;'):'');
 }
-/* once the cards are placed, let each photo use the card's full height —
-   the box is already that tall because of the text, so this is free size */
+/* Once the cards are placed, let each photo grow towards the card's full height — BUT only
+   as far as the text still fits. Growing the photo narrows the text column; if the text then
+   wraps taller than the measured card, the bottom gets cut off (the bug this replaces).
+   So after every step we check the real content size and back off on overflow. */
 function psGrowPhotos(){
   psAllEls().forEach(function(e){
-    if(e.t!=='card'){ return; }
-    if(!e.h){ e.phw=0; return; }
-    var side=Math.min(e.h-22, Math.round(e.w*0.45));
-    e.phw=side>30?side:0;
+    if(e.t!=='card') return;
+    if(!e.h||!e.photo){ e.phw=0; psApplyElStyle(e); return; }
+    var n=psNode(e.id), inner=n&&n.querySelector('.pelin');
+    if(!inner){ e.phw=0; return; }
+    var base=Math.round((PS_PHB[psColsN()]||104)*psPrefs.fs);   // size the card was measured with
+    var phw=Math.min(e.h-22, Math.round(e.w*0.45));
+    for(; phw>base; phw-=14){
+      e.phw=phw; psApplyElStyle(e);
+      if(inner.scrollHeight<=inner.clientHeight+1 && inner.scrollWidth<=inner.clientWidth+1) return; // fits
+    }
+    e.phw=0; psApplyElStyle(e);   // measured size always fits
   });
 }
 function psElHtml(e){
@@ -1459,8 +1469,9 @@ function psAutoArrange(noFit){
     });
   });
   psSheet.pages=pages.length?pages:[{els:[]}];
+  psRender();          // nodes must exist first — the photo growth measures them
   psGrowPhotos();
-  psRender(); psSave();
+  psSave();
 }
 
 /* ----- selection ----- */
