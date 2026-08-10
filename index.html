@@ -1172,12 +1172,26 @@ function piNumber(name){
 }
 /* hand-typed headings are remembered PER PI (key sanitised for Firebase: . # $ [ ] → _) */
 function piMetaKey(pi){ return String(pi||'_').replace(/[.#$/\[\]]/g,'_'); }
+/* A file named "4 Vladimir.xlsx" names its supplier — that beats guessing from the catalog
+   (whose active chip can be stale). Matches against the suppliers/vendors we actually know. */
+function piSupplierFromName(pi){
+  var base=String(pi||'').replace(/\.[a-z0-9]+$/i,'').replace(/^\s*\d+\s*[._\-)]*\s*/,'').trim();
+  if(base.length<3) return '';
+  var lb=base.toLowerCase(), known={};
+  function add(n){ if(n&&String(n).trim().length>=3) known[String(n).trim().toLowerCase()]=String(n).trim(); }
+  entries(cat.products).forEach(function(e){ add(e[1]&&e[1].supplier); });
+  entries(cat.suppliers).forEach(function(e){ add(e[1]&&e[1].name); });
+  entries(typeof vend!=='undefined'?(vend||{}):{}).forEach(function(e){ add(e[1]&&e[1].name); });
+  var hit='';
+  Object.keys(known).forEach(function(k){ if(lb.indexOf(k)>=0 && k.length>hit.length) hit=k; });
+  return hit?known[hit]:'';
+}
 function psHeadEl(lines,isFirst,piKey){
   var meta=(order.piMeta||{})[piMetaKey(piKey)]||{};
   var num=piNumber(piKey)||(isFirst?piNumber(order.name):'');
   var typed=(meta.sup!=null&&meta.sup!=='')?meta.sup
     :((isFirst&&order.printSupplier!=null&&order.printSupplier!=='')?order.printSupplier:'');
-  var sup=typed||psSupplier(lines||[]);
+  var sup=typed||piSupplierFromName(piKey)||psSupplier(lines||[]);
   sup=String(sup||'').replace(/&#\d+;?/g,' ').replace(/[\r\n\t]+/g,' ').replace(/\s{2,}/g,' ').trim(); // drop PI cell junk
   if(!typed&&num&&sup) sup=sup+' '+num;        // "Vladimir 5" — same number as the container
   var ctn=(meta.ctn!=null&&meta.ctn!=='')?meta.ctn:((isFirst&&order.containerNo)?order.containerNo:num);
@@ -1999,12 +2013,14 @@ function downscale(dataUrl,max){ return new Promise(function(res){ var img=new I
 function piImageCols(rows,cols){
   var out={book:null,item:null};
   if(!rows) return out;
+  // sheetGrid numbers columns 1-based (A=1), drawing anchors are 0-based (A=0) → shift by one,
+  // otherwise "ITEM" points at the next column over (that read COLOR instead of ITEM in PI 4)
   var has=function(c){ return cols[c]&&cols[c].length; };
   for(var r=0;r<rows.length&&r<60;r++){
     var cells=rows[r]; if(!cells) continue;
     var book=null,item=null;
     Object.keys(cells).forEach(function(k){
-      var c=+k, t=String(cells[k]||'').toLowerCase().replace(/\s+/g,' ').trim();
+      var c=(+k)-1, t=String(cells[k]||'').toLowerCase().replace(/\s+/g,' ').trim();
       if(!t||t.length>18) return;
       if(book==null && /colou?r\s*book/.test(t) && has(c)) book=c;
       else if(item==null && /^(item|photo|picture|image|colou?r)$/.test(t) && has(c)) item=c;
@@ -2013,8 +2029,9 @@ function piImageCols(rows,cols){
   }
   return out;
 }
-/* Give each panel its OWN picture: walk panels and images in row order, never reuse one and
-   never go backwards, but within that pick the closest anchor row. */
+/* Give each panel its OWN picture. Both lists run in row order, so walk them together and
+   only take a picture that actually sits in this panel's band of rows — a panel the supplier
+   left without a photo must stay empty instead of stealing the next panel's one. */
 function assignOneToOne(anchors,rows){
   var out=[];
   if(!anchors||!anchors.length||!rows.length) return out;
@@ -2025,13 +2042,11 @@ function assignOneToOne(anchors,rows){
   });
   var i=0;
   for(var p=0;p<rows.length;p++){
-    if(i>=imgs.length){ out[p]=null; continue; }
-    var limit=Math.max(i, imgs.length-(rows.length-p));   // keep one image left for each later panel
-    var best=i;
-    for(var k=i;k<=limit&&k<imgs.length;k++){
-      if(Math.abs(imgs[k].row-rows[p])<Math.abs(imgs[best].row-rows[p])) best=k;
-    }
-    out[p]=imgs[best]; i=best+1;
+    var start=rows[p]-1;                                          // pictures often sit a row high
+    var end=(p+1<rows.length)?(rows[p+1]-1):(rows[p]+2);          // …up to just before the next panel
+    while(i<imgs.length && imgs[i].row<start) i++;                // anything above belongs to nobody
+    if(i<imgs.length && imgs[i].row<=end){ out[p]=imgs[i]; i++; }
+    else out[p]=null;
   }
   return out;
 }
@@ -2086,8 +2101,22 @@ function classify(code){ if(/^clip/i.test(code))return 'clip'; if(rePanel.test(c
 function inum(v){ if(v==null||v==='')return ''; var n=parseFloat(String(v).replace(/[^\d.\-]/g,'')); return isNaN(n)?'':Math.round(n); }
 function pnum(v){ if(v==null||v==='')return ''; var n=parseFloat(String(v).replace(/[^\d.\-]/g,'')); return isNaN(n)?'':Math.round(n*1000)/1000; }
 function parsePI(rows){
+  // Find the header row by SCORE, not by demanding one particular pair of words: suppliers
+  // overwrite single header cells (PI "4 Vladimir" has a plain "14" where SIZE belongs, which
+  // used to make the whole file unreadable). Three of the usual headers are enough.
   var hi=-1;
-  for(var r=0;r<rows.length;r++){ var c=rows[r]||{}, vals=Object.keys(c).map(function(k){return c[k].toLowerCase();}); if(vals.some(function(v){return /size/.test(v);})&&vals.some(function(v){return /qty|quantity/.test(v);})){ hi=r; break; } }
+  for(var r=0;r<rows.length&&r<80;r++){
+    var c=rows[r]||{}, vals=Object.keys(c).map(function(k){ return String(c[k]||'').toLowerCase().replace(/\s+/g,' ').trim(); });
+    var sc=0;
+    if(vals.some(function(v){return /^(number|item|model|code)$/.test(v);})) sc++;
+    if(vals.some(function(v){return /qty|quantity/.test(v);})) sc++;
+    if(vals.some(function(v){return /unit\s*price/.test(v);})) sc++;
+    if(vals.some(function(v){return /amount/.test(v);})) sc++;
+    if(vals.some(function(v){return /size/.test(v);})) sc++;
+    if(vals.some(function(v){return /cartons?/.test(v);})) sc++;
+    if(vals.some(function(v){return /colou?r|book/.test(v);})) sc++;
+    if(sc>=3){ hi=r; break; }
+  }
   if(hi<0) return null;
   var hdr=rows[hi], cols=Object.keys(hdr).map(Number);
   function find(re){ return cols.filter(function(c){ return re.test(hdr[c].toLowerCase()); }); }
@@ -2095,7 +2124,11 @@ function parsePI(rows){
   for(var r2=hi+1;r2<rows.length;r2++){ var cc=rows[r2]||{}; var ks=Object.keys(cc); if(!ks.length) continue; var first=cc[Math.min.apply(null,ks.map(Number))]||''; if(/^total/i.test(String(first))) break; dataRows.push({srcRow:r2,cells:cc}); }
   var codeCands=find(/^(item|number)$/i); if(!codeCands.length) codeCands=cols;
   var codeCol=codeCands.map(function(c){return [c,dataRows.filter(function(dr){return looksCode(dr.cells[c]);}).length];}).sort(function(a,b){return b[1]-a[1];})[0][0];
-  var sizeCol=find(/size/i)[0]||cols.map(function(c){return [c,dataRows.filter(function(dr){return reSize.test(dr.cells[c]||'');}).length];}).sort(function(a,b){return b[1]-a[1];})[0][0];
+  var sizeCol=find(/size/i)[0];
+  if(sizeCol==null){                              // no SIZE header → look for a column that holds sizes
+    var sizeTop=cols.map(function(c){return [c,dataRows.filter(function(dr){return reSize.test(dr.cells[c]||'');}).length];}).sort(function(a,b){return b[1]-a[1];})[0];
+    sizeCol=(sizeTop&&sizeTop[1]>0)?sizeTop[0]:null;   // …and if the PI has none, leave size empty
+  }                                                    // (never grab an arbitrary column: that printed "23" as the size)
   var qtyCol=find(/^qty$|quantity/i)[0];
   var colorCands=find(/colou?r|book/i).filter(function(c){return c!==codeCol&&c!==sizeCol;});
   var colorTop=colorCands.map(function(c){return [c,dataRows.filter(function(dr){return dr.cells[c];}).length];}).sort(function(a,b){return b[1]-a[1];})[0];
@@ -2107,7 +2140,7 @@ function parsePI(rows){
     var row=dr.cells;
     var code=(row[codeCol]||'').replace(/\s*\(.+?\)\s*/,'').trim(); if(!looksCode(code)) return null;
     var colorRaw=colorCol?row[colorCol]:'';
-    return { code:code, kind:classify(code), size:row[sizeCol]||'', qty:inum(row[qtyCol]), srcRow:dr.srcRow,
+    return { code:code, kind:classify(code), size:(sizeCol!=null?(row[sizeCol]||''):''), qty:inum(row[qtyCol]), srcRow:dr.srcRow,
       number:reColorNum.test(colorRaw)?colorRaw:'', page:(colorRaw&&!reColorNum.test(colorRaw))?colorRaw:'',
       price:priceCol?pnum(row[priceCol]):'', die:dieCol?(row[dieCol]||''):'' };
   }).filter(Boolean);
