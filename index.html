@@ -456,7 +456,7 @@
   <div class="btngrp">
     <button class="btn" id="btnImport">📥 Import PI</button>
     <button class="btn" id="btnDrive">⛁ Drive</button>
-    <input type="file" id="importFile" accept=".xlsx" multiple style="display:none">
+    <input type="file" id="importFile" accept=".xlsx,.xls" multiple style="display:none">
   </div>
   <div class="btngrp">
     <button class="btn primary" id="btnPdf">🖨️ Print sheet</button>
@@ -983,12 +983,14 @@ function upsertProduct(line, fromPI){
   function setIf(f,v){ if(v!=='' && v!=null) o[f]=v; }
   /* Photos are precious: a PI import (and "add to order") hands us `IMG_BASE/<CODE>.jpg`
      for EVERY code — a guess, not a picture. Storing that used to wipe photos uploaded in
-     📋 Products. So: never store the by-code guess, and never let an import or a plain link
-     replace a photo that is already there. */
+     📋 Products. So: never store the by-code guess, and never let a plain link replace a
+     photo. prodImg additionally stays untouched by imports (that is where uploads live),
+     while colour/book pictures DO refresh from a PI — the invoice is the freshest word on
+     what colour that code ships in, and .xls contracts carry no pictures of their own. */
   function setImg(f,v){
     if(!v) return;
     if(v.indexOf(IMG_BASE)===0) return;                                       // website guess by code
-    if(fromPI && ex[f]) return;                                               // imports only fill gaps
+    if(fromPI && f==='prodImg' && ex[f]) return;                              // never overwrite an upload
     if(ex[f] && ex[f].indexOf('data:')===0 && v.indexOf('data:')!==0) return; // keep the uploaded one
     o[f]=v;
   }
@@ -2007,6 +2009,161 @@ function u8ToB64(u8){ var s='',CH=0x8000; for(var i=0;i<u8.length;i+=CH){ s+=Str
 function resolveRel(fromDir,target){ var parts=(fromDir+target).split('/'),out=[]; parts.forEach(function(p){ if(p==='..')out.pop(); else if(p!=='.'&&p!=='')out.push(p); }); return out.join('/'); }
 function downscale(dataUrl,max){ return new Promise(function(res){ var img=new Image(); img.onload=function(){ var w=img.width,h=img.height; if(w>h&&w>max){h=Math.round(h*max/w);w=max;}else if(h>max){w=Math.round(w*max/h);h=max;} var cv=document.createElement('canvas'); cv.width=w||1; cv.height=h||1; cv.getContext('2d').drawImage(img,0,0,w,h); try{res(cv.toDataURL('image/jpeg',0.72));}catch(e){res('');} }; img.onerror=function(){res('');}; img.src=dataUrl; }); }
 /* extract embedded images anchored per (row,col) from the sheet's drawing */
+/* ---------- Excel 97-2003 (.xls, BIFF8) ----------------------------------
+   Suppliers still send contracts in the old binary format (it is an OLE2
+   compound file, not a zip), which the xlsx path cannot open at all. We read
+   the cells out of it and hand parsePI the same grid sheetGrid produces.
+   Pictures inside .xls are Escher/BLIP records — not read; the cards fall
+   back to the catalog photo for that code.                                */
+function isOle2(buf){
+  var b=new Uint8Array(buf,0,8);
+  return b[0]===0xD0&&b[1]===0xCF&&b[2]===0x11&&b[3]===0xE0&&b[4]===0xA1&&b[5]===0xB1&&b[6]===0x1A&&b[7]===0xE1;
+}
+function oleStreams(buf){
+  var dv=new DataView(buf), u8=new Uint8Array(buf);
+  var ssz=1<<dv.getUint16(30,true), mssz=1<<dv.getUint16(32,true);
+  var nFat=dv.getUint32(44,true), dirStart=dv.getUint32(48,true);
+  var miniCut=dv.getUint32(56,true), miniFatStart=dv.getUint32(60,true), nMiniFat=dv.getUint32(64,true);
+  var difatStart=dv.getUint32(68,true), nDifat=dv.getUint32(72,true);
+  function sec(n){ return u8.subarray(512+n*ssz, 512+(n+1)*ssz); }
+  var fatSecs=[],i,v;
+  for(i=0;i<109;i++){ v=dv.getUint32(76+i*4,true); if(v<0xFFFFFFFE) fatSecs.push(v); }
+  var ds=difatStart;
+  for(var k=0;k<nDifat&&ds<0xFFFFFFFE;k++){
+    var sd=new DataView(buf,512+ds*ssz,ssz);
+    for(i=0;i<(ssz/4)-1;i++){ v=sd.getUint32(i*4,true); if(v<0xFFFFFFFE) fatSecs.push(v); }
+    ds=sd.getUint32(ssz-4,true);
+  }
+  var fat=[];
+  fatSecs.slice(0,nFat||fatSecs.length).forEach(function(fs){
+    var sd=new DataView(buf,512+fs*ssz,ssz);
+    for(var j=0;j<ssz/4;j++) fat.push(sd.getUint32(j*4,true));
+  });
+  function cat(parts,size){
+    var n=0; parts.forEach(function(p){ n+=p.length; });
+    var out=new Uint8Array(n), o=0;
+    parts.forEach(function(p){ out.set(p,o); o+=p.length; });
+    return size?out.subarray(0,size):out;
+  }
+  function readChain(start,size){
+    var parts=[],c=start,g=0;
+    while(c<0xFFFFFFFE&&g++<200000){ parts.push(sec(c)); c=fat[c]; }
+    return cat(parts,size);
+  }
+  var dir=readChain(dirStart,0), entries=[];
+  for(var off=0; off+128<=dir.length; off+=128){
+    var nl=dir[off+64]|(dir[off+65]<<8); if(nl<=2) continue;
+    var nm='';
+    for(i=0;i<nl-2;i+=2) nm+=String.fromCharCode(dir[off+i]|(dir[off+i+1]<<8));
+    entries.push({name:nm, type:dir[off+66],
+      start:(dir[off+116]|(dir[off+117]<<8)|(dir[off+118]<<16)|(dir[off+119]<<24))>>>0,
+      size:(dir[off+120]|(dir[off+121]<<8)|(dir[off+122]<<16)|(dir[off+123]<<24))>>>0});
+  }
+  var root=null; entries.forEach(function(e){ if(e.type===5&&!root) root=e; });
+  var miniFat=[];
+  if(nMiniFat){ var mb=readChain(miniFatStart,0); for(i=0;i<mb.length/4;i++) miniFat.push((mb[i*4]|(mb[i*4+1]<<8)|(mb[i*4+2]<<16)|(mb[i*4+3]<<24))>>>0); }
+  var mini=root?readChain(root.start,root.size):new Uint8Array(0);
+  function readMini(start,size){
+    var parts=[],c=start,g=0;
+    while(c<0xFFFFFFFE&&g++<200000){ parts.push(mini.subarray(c*mssz,(c+1)*mssz)); c=miniFat[c]; }
+    return cat(parts,size);
+  }
+  return { entries:entries, read:function(e){ return e.size<miniCut?readMini(e.start,e.size):readChain(e.start,e.size); } };
+}
+/* shared string table — strings may run across CONTINUE blocks, and each block
+   restarts with its own compressed/wide flag */
+function xlsSST(blocks){
+  var out=[], bi=0, p=8;
+  if(!blocks.length) return out;
+  function b(){ return blocks[bi]; }
+  function next(){ bi++; p=0; return bi<blocks.length; }
+  function room(n){ return b()&&(p+n)<=b().length; }
+  var cnt=(blocks[0][4]|(blocks[0][5]<<8)|(blocks[0][6]<<16)|(blocks[0][7]<<24))>>>0;
+  for(var s=0;s<cnt;s++){
+    if(!room(3)&&!next()) break;
+    if(!room(3)) break;
+    var cch=b()[p]|(b()[p+1]<<8); p+=2;
+    var gr=b()[p++]; var wide=gr&1;
+    var rich=0, ext=0;
+    if(gr&8){ rich=b()[p]|(b()[p+1]<<8); p+=2; }
+    if(gr&4){ ext=(b()[p]|(b()[p+1]<<8)|(b()[p+2]<<16)|(b()[p+3]<<24))>>>0; p+=4; }
+    var str='', left=cch;
+    while(left>0){
+      if(p>=b().length){ if(!next()) break; wide=b()[p++]&1; }
+      var avail=b().length-p, can=wide?Math.floor(avail/2):avail;
+      if(can<=0){ if(!next()) break; wide=b()[p++]&1; continue; }
+      var take=Math.min(left,can);
+      for(var i=0;i<take;i++){
+        if(wide){ str+=String.fromCharCode(b()[p]|(b()[p+1]<<8)); p+=2; }
+        else { str+=String.fromCharCode(b()[p]); p+=1; }
+      }
+      left-=take;
+    }
+    var skip=rich*4+ext;
+    while(skip>0){
+      if(p>=b().length){ if(!next()) break; p++; }        // continuation flag byte
+      var s2=Math.min(skip,b().length-p); p+=s2; skip-=s2;
+    }
+    out.push(str);
+  }
+  return out;
+}
+/* every sheet as the same {rowNo:{colNo:value}} grid sheetGrid returns (1-based) */
+function xlsSheets(buf){
+  var ole=oleStreams(buf), wb=null;
+  ole.entries.forEach(function(e){ if(!wb&&/^(workbook|book)$/i.test(e.name)) wb=e; });
+  if(!wb) return [];
+  var S=ole.read(wb), recs=[], p=0;
+  while(p+4<=S.length){
+    var id=S[p]|(S[p+1]<<8), len=S[p+2]|(S[p+3]<<8);
+    recs.push({id:id,off:p+4,len:len}); p+=4+len;
+  }
+  var subs=[], curr=null;
+  recs.forEach(function(r){
+    if(r.id===0x0809){ curr=[]; subs.push(curr); }
+    if(curr) curr.push(r);
+  });
+  if(!subs.length) return [];
+  var sstBlocks=[];
+  subs[0].forEach(function(r,i){
+    if(r.id!==0x00FC) return;
+    sstBlocks.push(S.subarray(r.off,r.off+r.len));
+    for(var j=i+1;j<subs[0].length&&subs[0][j].id===0x003C;j++) sstBlocks.push(S.subarray(subs[0][j].off,subs[0][j].off+subs[0][j].len));
+  });
+  var sst=xlsSST(sstBlocks);
+  function rkVal(v){
+    var d;
+    if(v&2){ d=v>>2; }
+    else { var ab=new ArrayBuffer(8), dv2=new DataView(ab); dv2.setInt32(4,v&~3,true); d=dv2.getFloat64(0,true); }
+    return (v&1)?d/100:d;
+  }
+  var dv=new DataView(S.buffer,S.byteOffset,S.byteLength);
+  var sheets=[];
+  subs.slice(1).forEach(function(rs){
+    var rows=[];
+    function put(r,c,v){ if(v===''||v==null) return; if(!rows[r+1]) rows[r+1]={}; rows[r+1][c+1]=String(v); }
+    rs.forEach(function(r){
+      var o=r.off;
+      if(r.id===0x00FD){ put(dv.getUint16(o,true), dv.getUint16(o+2,true), sst[dv.getUint32(o+6,true)]||''); }
+      else if(r.id===0x0203){ put(dv.getUint16(o,true), dv.getUint16(o+2,true), dv.getFloat64(o+6,true)); }
+      else if(r.id===0x027E){ put(dv.getUint16(o,true), dv.getUint16(o+2,true), rkVal(dv.getInt32(o+6,true))); }
+      else if(r.id===0x00BD){
+        var row=dv.getUint16(o,true), c0=dv.getUint16(o+2,true);
+        for(var q=4;q+6<=r.len-2;q+=6){ put(row,c0,rkVal(dv.getInt32(o+q+2,true))); c0++; }
+      }
+      else if(r.id===0x0204){
+        var cch=dv.getUint16(o+6,true), wide=S[o+8]&1, str='';
+        for(var i2=0;i2<cch;i2++) str+= wide?String.fromCharCode(S[o+9+i2*2]|(S[o+10+i2*2]<<8)):String.fromCharCode(S[o+9+i2]);
+        put(dv.getUint16(o,true), dv.getUint16(o+2,true), str);
+      }
+      else if(r.id===0x0006){                       // FORMULA — numeric results only
+        if(!(S[o+12]===0xFF&&S[o+13]===0xFF)) put(dv.getUint16(o,true), dv.getUint16(o+2,true), dv.getFloat64(o+6,true));
+      }
+    });
+    sheets.push(rows);
+  });
+  return sheets;
+}
 /* Which picture column is the colour book, which is the item/colour photo? The PI header row
    says so ("Number | Color Book | ITEM | COLOR | SIZE …") — far safer than guessing by position,
    since every supplier orders the columns differently. Only columns that really carry images count. */
@@ -2160,8 +2317,17 @@ function importFiles(fileList){
   var files=Array.prototype.slice.call(fileList||[]); if(!files.length) return;
   el('btnImport').textContent='reading…';
   var allLines=[], suppliers={}, errors=[];
+  /* Excel 97-2003 contract (.xls): no zip, no embedded pictures we read — cells only */
+  function importOneXls(file,buf){
+    var sheets=xlsSheets(buf), picked=null, sup='';
+    for(var i=0;i<sheets.length;i++){ var res=parsePI(sheets[i]); if(res&&res.lines.length){ picked=res.lines; sup=detectSupplier(sheets[i]); break; } }
+    if(!picked){ errors.push(file.name+': no line items found'); return; }
+    picked.forEach(function(l){ l._file=file.name; l._supplier=sup; });
+    allLines=allLines.concat(picked); if(sup) suppliers[sup]=1;
+  }
   function importOne(file){
     return file.arrayBuffer().then(function(buf){
+      if(isOle2(buf)) return importOneXls(file,buf);
       var parts=unzipParts(buf);
       return partText(parts,'xl/sharedStrings.xml').then(function(sx){
         var shared=parseShared(sx);
