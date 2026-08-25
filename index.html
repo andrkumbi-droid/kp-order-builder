@@ -2238,9 +2238,12 @@ function sheetGrid(xml,shared){
   var rows=[], rowRe=/<row[^>]*r="(\d+)"[^>]*>([\s\S]*?)<\/row>/g, rm;
   while(rm=rowRe.exec(xml)){
     var rn=+rm[1], cells={};
-    var cRe=/<c r="([A-Z]+)(\d+)"(?:[^>]*t="([^"]*)")?[^>]*>([\s\S]*?)<\/c>|<c r="([A-Z]+)(\d+)"[^>]*\/>/g, cm;
+    // A blank cell written short — <c r="A2"/> — has to be matched BEFORE the open/close
+    // form, or that branch runs straight past it and eats the NEXT cell. That is why the
+    // app could not re-import its own export: the empty PICTURE cell swallowed every code.
+    var cRe=/<c r="([A-Z]+)(\d+)"[^>]*\/>|<c r="([A-Z]+)(\d+)"(?:[^>]*t="([^"]*)")?[^>]*>([\s\S]*?)<\/c>/g, cm;
     while(cm=cRe.exec(rm[2])){
-      var col=cm[1]||cm[5]; if(!col) continue; var t=cm[3], inner=cm[4]||'', val='';
+      var col=cm[1]||cm[3]; if(!col) continue; var t=cm[5], inner=cm[6]||'', val='';
       var vm=/<v>([\s\S]*?)<\/v>/.exec(inner), ism=/<t[^>]*>([\s\S]*?)<\/t>/.exec(inner);
       if(t==='s'&&vm) val=shared[+vm[1]]||''; else if(t==='inlineStr'&&ism) val=ism[1]; else if(vm) val=vm[1];
       val=dec(val); if(val) cells[colToNum(col)]=val;
@@ -2286,7 +2289,7 @@ function parsePI(rows){
     var sizeTop=cols.map(function(c){return [c,dataRows.filter(function(dr){return reSize.test(dr.cells[c]||'');}).length];}).sort(function(a,b){return b[1]-a[1];})[0];
     sizeCol=(sizeTop&&sizeTop[1]>0)?sizeTop[0]:null;   // …and if the PI has none, leave size empty
   }                                                    // (never grab an arbitrary column: that printed "23" as the size)
-  var qtyCol=find(/^qty$|quantity/i)[0];
+  var qtyCol=find(/^qty\b|quantity/i)[0];   // "QTY (pcs)" counts too
   var colorCands=find(/colou?r|book/i).filter(function(c){return c!==codeCol&&c!==sizeCol;});
   var colorTop=colorCands.map(function(c){return [c,dataRows.filter(function(dr){return dr.cells[c];}).length];}).sort(function(a,b){return b[1]-a[1];})[0];
   var colorCol=colorTop&&colorTop[1]?colorTop[0]:null;
@@ -2309,7 +2312,7 @@ function parsePI(rows){
   return { lines:lines };
 }
 function detectSupplier(rows){
-  for(var r=0;r<Math.min(rows.length,8);r++){ var c=rows[r]||{}; var ks=Object.keys(c); for(var i=0;i<ks.length;i++){ var v=c[ks[i]]; if(/co\.,?\s*ltd|import|export|decoration|material|xinyt|xiecheng|haipai/i.test(v)){ var name=v.replace(/\s+/g,' ').split(/\s*(?:address|地址|no\.?\s*\d|tel|phone)/i)[0].trim(); return name.slice(0,60); } } }
+  for(var r=0;r<Math.min(rows.length,8);r++){ var c=rows[r]||{}; var ks=Object.keys(c); for(var i=0;i<ks.length;i++){ var v=c[ks[i]]; if(!/[ ]/.test(String(v).trim())&&String(v).trim().length<12) continue; /* a bare header word like "MATERIAL" is no company */ if(/co\.,?\s*ltd|import|export|decoration|material|xinyt|xiecheng|haipai/i.test(v)){ var name=v.replace(/\s+/g,' ').split(/\s*(?:address|地址|no\.?\s*\d|tel|phone)/i)[0].trim(); return name.slice(0,60); } } }
   return '';
 }
 
