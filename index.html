@@ -2258,7 +2258,7 @@ var reSize=/^\d+\s*[*x]\s*\d+\s*[*x]\s*\d+\s*mm/i,
     rePanel=/^(kp|k-pvc|k-wpc|kw)/i,
     reColorNum=/\d{3,}-\d|\d{5,}/;
 function looksCode(v){ return v && (reCode.test(v)||/^clip/i.test(v)) && !reSize.test(v); }
-function classify(code){ if(/^clip/i.test(code))return 'clip'; if(rePanel.test(code))return 'panel'; if(/^l/i.test(code))return 'L'; if(/^t/i.test(code))return 'T'; if(/^u/i.test(code))return 'U'; return 'panel'; }
+function classify(code){ if(/^clip/i.test(code))return 'clip'; if(rePanel.test(code))return 'panel'; if(/^l/i.test(code))return 'L'; if(/^t/i.test(code))return 'T'; if(/^u/i.test(code))return 'U'; if(/^h/i.test(code))return 'H'; /* H-connector: accessory, not a panel — panels all start KP/K-PVC */ return 'panel'; }
 function inum(v){ if(v==null||v==='')return ''; var n=parseFloat(String(v).replace(/[^\d.\-]/g,'')); return isNaN(n)?'':Math.round(n); }
 function pnum(v){ if(v==null||v==='')return ''; var n=parseFloat(String(v).replace(/[^\d.\-]/g,'')); return isNaN(n)?'':Math.round(n*1000)/1000; }
 function parsePI(rows){
