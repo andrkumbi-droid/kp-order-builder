@@ -586,6 +586,7 @@
 <script src="https://accounts.google.com/gsi/client" async></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://andrkumbi-droid.github.io/kp-wallpanel/kp-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <script>
 (function(){
@@ -647,7 +648,7 @@ function obStart(){
   seedPrices();
 }
 if(db){
-  firebase.auth().signInAnonymously()
+  (window.kpAuthEnsure ? kpAuthEnsure('orderbuilder') : firebase.auth().signInAnonymously())
     .then(obStart)
     .catch(function(e){
       console.error('[FB] anonymous sign-in failed:', e && e.code, e && e.message);
